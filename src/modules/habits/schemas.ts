@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isoDateSchema, nonEmptyStringSchema, uuidSchema } from "@/lib/validation/common";
+import { habitCadenceSchema } from "@/modules/habits/cadence";
 
 export const habitLogStatusSchema = z.enum([
   "completed",
@@ -9,10 +10,16 @@ export const habitLogStatusSchema = z.enum([
   "recovery",
 ]);
 
+/**
+ * Habit create payload. Cadence is required and validated by habitCadenceSchema.
+ * Server-only write boundary: createHabit() parses this before any DB insert;
+ * the DB also enforces cadence via is_valid_habit_cadence() CHECK.
+ */
 export const createHabitSchema = z
   .object({
     name: nonEmptyStringSchema,
     description: z.string().trim().max(2000).optional(),
+    cadence: habitCadenceSchema,
     minValue: z.number().nonnegative(),
     targetValue: z.number().nonnegative(),
     unit: z.string().trim().max(40).optional(),

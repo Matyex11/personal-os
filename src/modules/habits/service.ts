@@ -29,26 +29,22 @@ export async function listHabits() {
 export async function createHabit(input: unknown) {
   try {
     const user = await requireUser();
-    const base = createHabitSchema.parse(input);
-    const cadence = habitCadenceSchema.parse(
-      (input as { cadence?: unknown }).cadence ?? {
-        kind: "daily",
-        startOn: new Date().toISOString().slice(0, 10),
-      },
-    );
+    // Server-only write boundary: cadence + values validated before insert.
+    // DB also CHECKs is_valid_habit_cadence(cadence) and min_value >= 0.
+    const parsed = createHabitSchema.parse(input);
 
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("habits")
       .insert({
         user_id: user.id,
-        chapter_id: base.chapterId ?? null,
-        name: base.name,
-        description: base.description ?? null,
-        cadence,
-        min_value: base.minValue,
-        target_value: base.targetValue,
-        unit: base.unit ?? null,
+        chapter_id: parsed.chapterId ?? null,
+        name: parsed.name,
+        description: parsed.description ?? null,
+        cadence: parsed.cadence,
+        min_value: parsed.minValue,
+        target_value: parsed.targetValue,
+        unit: parsed.unit ?? null,
         is_active: true,
       })
       .select("*")

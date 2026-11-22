@@ -1,25 +1,25 @@
-# Phase 1B SQL tests (authored — not executed)
+# Phase 1B SQL tests (executable assertions — not run this pass)
 
-These scripts are **draft assertions** for personal-os-dev after the Phase 1B
-migration is L3-approved and applied. They are **not** run in this agent pass.
+Transactional SQL with `RAISE EXCEPTION` on failure. Intended for
+`supabase test db` / SQL Editor **after** L3 apply to personal-os-dev.
 
 ## Constraints
 
-- **Do not start Docker** to execute these.
-- **Do not** run against hosted DEV until the migration is applied and a human
-  authorizes DB test execution.
-- Until then, treat them as review artifacts that encode expected RLS, grants,
-  FK deletion behaviour, audit integrity, and recovery constraints.
+- **Do not start Docker** in agent passes unless explicitly approved.
+- **Do not** run against hosted DEV until migration apply is approved.
+- This agent pass: **authored only — not executed.**
 
 ## Files
 
 | File | Covers |
 |------|--------|
-| `rls_privileges.sql` | anon denied; authenticated grants; no DELETE; own vs cross-user |
-| `fk_delete_behaviour.sql` | column-specific `SET NULL`; restrict on habit history |
-| `audit_recovery.sql` | audit actor_type; recovery immutability; cross-user FKs |
+| `01_privileges_and_functions.sql` | Table privileges; function EXECUTE via `has_function_privilege` |
+| `02_rls_and_audit.sql` | Own vs cross-user RLS; no DELETE; audit insert denial |
+| `03_fk_cadence_recovery.sql` | Composite FK ownership; SET NULL (col); habit RESTRICT; recovery |
 
-## Intended runner (future, human-approved)
+## Runner (future, human-approved)
 
-pgTAP / `supabase test db` / SQL Editor as a **read-only review** session — never
-as silent agent automation against unknown projects.
+```bash
+# Example only — do not run until authorized:
+# npx supabase test db
+```

@@ -65,10 +65,10 @@ Aligned with `docs/DATABASE_SCHEMA.md` and the Phase 1B migration draft:
    links use PG17 `ON DELETE SET NULL (col)` so `user_id` is never nullified.
 6. Defence in depth: sensitive modules need app/MCP authorization even when RLS
    allows the user to read their own rows (AI is not the user).
-7. `audit_logs`: authenticated SELECT own; INSERT only with
-   `actor_type = 'user'` and `user_id = auth.uid()`; **no** client UPDATE/DELETE.
-   Non-user actors (`system` / `mcp` / `agent`) require a future **trusted-server**
-   writer (security definer or host-held `service_role`) — never agent credentials.
+7. `audit_logs`: authenticated **SELECT own only** — no INSERT/UPDATE/DELETE
+   privilege or policy for clients. No generic client audit writer.
+   Trusted writing (user/system/mcp/agent) is **deferred** until a secure
+   server-side or DB-trigger mechanism exists — never agent-held credentials.
 
 ## MCP authorization (mandatory)
 
@@ -122,9 +122,10 @@ Require L3 human approval **and** UI/MCP confirmation:
 
 ## Audit trail
 
-- Append-oriented `audit_logs` for important mutations and MCP admin/sensitive tools.
-- Client inserts may only claim `actor_type = 'user'` for `auth.uid()`.
-- Metadata excludes secrets and service-role material.
+- Append-oriented `audit_logs` table exists for future important mutations / MCP tools.
+- Clients may **read** their own rows only; they cannot insert or mutate audit rows.
+- Trusted audit writing is deferred (secure server-side writer or DB triggers).
+- Metadata must exclude secrets and service-role material.
 
 ## Testing security (initial)
 

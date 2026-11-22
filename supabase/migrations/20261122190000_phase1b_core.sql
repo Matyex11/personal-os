@@ -1,7 +1,7 @@
 -- Phase 1B core schema DRAFT for personal-os-dev (qyysmgwdvhftbgwhpbjt, eu-central-1).
 -- DO NOT APPLY until separate human L3 approval.
--- L3 review corrections: column-specific SET NULL, explicit privileges,
--- no authenticated hard-delete, audit actor constraints, hardened triggers.
+-- Final L3 corrections: function EXECUTE lockdown, audit SELECT-only for clients,
+-- cadence JSON checks, non-negative value constraints.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -53,6 +53,7 @@ end;
 $$;
 
 revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon, authenticated, service_role;
 grant execute on function public.handle_new_user() to supabase_auth_admin;
 
 drop trigger if exists on_auth_user_created on auth.users;
@@ -105,7 +106,6 @@ create policy chapters_update_own on public.chapters
   for update to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
--- Prefer close (status/ended_on); no authenticated DELETE policy.
 
 -- ---------------------------------------------------------------------------
 -- module_activations
@@ -128,7 +128,6 @@ create table public.module_activations (
     (scope = 'global' and chapter_id is null)
     or (scope = 'chapter' and chapter_id is not null)
   ),
-  -- Chapter-scoped activation rows are disposable config; cascade with chapter.
   foreign key (user_id, chapter_id)
     references public.chapters (user_id, id)
     on delete cascade
@@ -154,7 +153,50 @@ create policy module_activations_update_own on public.module_activations
   for update to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
--- Toggle via UPDATE (is_active); no authenticated DELETE policy.
+
+-- ---------------------------------------------------------------------------
+-- habit cadence validator (DB-level; mirrors habitCadenceSchema v1)
+-- ---------------------------------------------------------------------------
+
+create or replace function public.is_valid_habit_cadence(c jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select
+    c is not null
+    and jsonb_typeof(c) = 'object'
+    and c->>'kind' in ('daily', 'weekdays')
+    and c->>'startOn' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    and (
+      not (c ? 'endOn')
+      or c->'endOn' = 'null'::jsonb
+      or (
+        jsonb_typeof(c->'endOn') = 'string'
+        and c->>'endOn' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        and (c->>'endOn')::date >= (c->>'startOn')::date
+      )
+    )
+    and (
+      c->>'kind' <> 'weekdays'
+      or (
+        jsonb_typeof(c->'weekdays') = 'array'
+        and jsonb_array_length(c->'weekdays') between 1 and 7
+        and not exists (
+          select 1
+          from jsonb_array_elements(c->'weekdays') as t(elem)
+          where jsonb_typeof(elem) <> 'number'
+             or (elem #>> '{}')::numeric <> trunc((elem #>> '{}')::numeric)
+             or (elem #>> '{}')::int < 1
+             or (elem #>> '{}')::int > 7
+        )
+      )
+    );
+$$;
+
+revoke all on function public.is_valid_habit_cadence(jsonb) from public;
+revoke all on function public.is_valid_habit_cadence(jsonb) from anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- habits
@@ -175,8 +217,9 @@ create table public.habits (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, id),
+  constraint habits_min_nonneg check (min_value >= 0),
   constraint habits_min_target check (target_value >= min_value),
-  -- Preserve habit + user_id; only clear optional chapter link (PG17 column list).
+  constraint habits_cadence_v1 check (public.is_valid_habit_cadence(cadence)),
   foreign key (user_id, chapter_id)
     references public.chapters (user_id, id)
     on delete set null (chapter_id)
@@ -194,7 +237,6 @@ create policy habits_update_own on public.habits
   for update to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
--- Deactivate via is_active; no authenticated DELETE (protects linked history).
 
 -- ---------------------------------------------------------------------------
 -- habit_logs
@@ -217,7 +259,7 @@ create table public.habit_logs (
   constraint habit_logs_recovery_nullness check (
     (status = 'recovery') = (recovers_log_id is not null)
   ),
-  -- Do not cascade-destroy history when a habit row is targeted for removal.
+  constraint habit_logs_value_nonneg check (value is null or value >= 0),
   foreign key (user_id, habit_id)
     references public.habits (user_id, id)
     on delete restrict,
@@ -247,7 +289,6 @@ create policy habit_logs_update_own on public.habit_logs
   for update to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
--- No authenticated DELETE — primary history is append/update-guarded only.
 
 create or replace function public.enforce_habit_recovery_insert()
 returns trigger
@@ -276,8 +317,9 @@ begin
 end;
 $$;
 
+-- Trigger functions: migration owner creates triggers; no API-role EXECUTE.
 revoke all on function public.enforce_habit_recovery_insert() from public;
-grant execute on function public.enforce_habit_recovery_insert() to authenticated, service_role;
+revoke all on function public.enforce_habit_recovery_insert() from anon, authenticated, service_role;
 
 create trigger habit_logs_recovery_insert
   before insert on public.habit_logs
@@ -323,7 +365,7 @@ end;
 $$;
 
 revoke all on function public.enforce_habit_log_immutability() from public;
-grant execute on function public.enforce_habit_log_immutability() to authenticated, service_role;
+revoke all on function public.enforce_habit_log_immutability() from anon, authenticated, service_role;
 
 create trigger habit_logs_immutability
   before update on public.habit_logs
@@ -430,6 +472,9 @@ create policy tasks_update_own on public.tasks
 -- ---------------------------------------------------------------------------
 -- audit_logs
 -- ---------------------------------------------------------------------------
+-- Clients: SELECT own only. No generic client audit writer.
+-- Trusted writing (user/system/mcp/agent) is deferred until a secure
+-- server-side or DB-trigger mechanism exists — never agent-held credentials.
 
 create table public.audit_logs (
   id uuid primary key default gen_random_uuid(),
@@ -450,24 +495,11 @@ create policy audit_logs_select_own on public.audit_logs
   for select to authenticated
   using ((select auth.uid()) = user_id);
 
--- Clients may only insert as themselves with actor_type = user.
--- Future system/mcp/agent rows require a trusted-server path (service role /
--- security definer writer), never agent-held credentials.
-create policy audit_logs_insert_user_self on public.audit_logs
-  for insert to authenticated
-  with check (
-    actor_type = 'user'
-    and user_id = (select auth.uid())
-  );
-
--- No UPDATE/DELETE policies for authenticated clients.
+-- No INSERT / UPDATE / DELETE policies for authenticated clients.
 
 -- ---------------------------------------------------------------------------
 -- Explicit table privileges (hosted PG17 / Supabase roles)
 -- ---------------------------------------------------------------------------
--- Start from deny for API roles, then grant only what the app needs.
--- No TRUNCATE / REFERENCES / TRIGGER / MAINTAIN / DELETE for clients.
--- service_role bypasses RLS by design in Supabase — never expose it to agents.
 
 revoke all on table public.profiles from anon, authenticated;
 revoke all on table public.chapters from anon, authenticated;
@@ -487,6 +519,40 @@ grant select, insert, update on table public.habit_logs to authenticated;
 grant select, insert, update on table public.projects to authenticated;
 grant select, insert, update on table public.milestones to authenticated;
 grant select, insert, update on table public.tasks to authenticated;
-grant select, insert on table public.audit_logs to authenticated;
+grant select on table public.audit_logs to authenticated;
 
--- anon: no table grants (Auth handled via auth schema; Data API blocked here).
+-- ---------------------------------------------------------------------------
+-- Function EXECUTE assertions (fail migration if grants are wrong)
+-- ---------------------------------------------------------------------------
+
+do $$
+begin
+  -- handle_new_user: only supabase_auth_admin (PUBLIC revoked; no role named "public")
+  if has_function_privilege('anon', 'public.handle_new_user()', 'EXECUTE') then
+    raise exception 'anon must not EXECUTE handle_new_user';
+  end if;
+  if has_function_privilege('authenticated', 'public.handle_new_user()', 'EXECUTE') then
+    raise exception 'authenticated must not EXECUTE handle_new_user';
+  end if;
+  if has_function_privilege('service_role', 'public.handle_new_user()', 'EXECUTE') then
+    raise exception 'service_role must not EXECUTE handle_new_user';
+  end if;
+  if not has_function_privilege('supabase_auth_admin', 'public.handle_new_user()', 'EXECUTE') then
+    raise exception 'supabase_auth_admin must EXECUTE handle_new_user';
+  end if;
+
+  -- trigger enforcers: no API-role EXECUTE (migration owner creates triggers)
+  if has_function_privilege('anon', 'public.enforce_habit_recovery_insert()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.enforce_habit_recovery_insert()', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.enforce_habit_recovery_insert()', 'EXECUTE')
+  then
+    raise exception 'API roles must not EXECUTE enforce_habit_recovery_insert';
+  end if;
+
+  if has_function_privilege('anon', 'public.enforce_habit_log_immutability()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.enforce_habit_log_immutability()', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.enforce_habit_log_immutability()', 'EXECUTE')
+  then
+    raise exception 'API roles must not EXECUTE enforce_habit_log_immutability';
+  end if;
+end $$;

@@ -131,6 +131,12 @@ Use:
 Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
 `ON DELETE SET NULL (chapter_id)` (PG17 column list — never nullifies `user_id`).
 
+**Cadence integrity (Phase 1B):**
+- App: `createHabitSchema` embeds `habitCadenceSchema`; `createHabit()` is the
+  server-only write boundary (rejects bad kinds, empty weekdays, invalid ISO
+  weekdays 1–7, invalid `endOn < startOn`, negative mins).
+- DB: `public.is_valid_habit_cadence(cadence)` CHECK + `min_value >= 0`.
+
 ### `habit_logs`
 
 | Column | Notes |
@@ -138,7 +144,7 @@ Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
 | `id`, `user_id`, `habit_id` | Composite FK to habit |
 | `logged_on` | Date in user TZ intent |
 | `status` | `completed` \| `partial` \| `missed` \| `not_scheduled` \| `recovery` |
-| `value` | Actual amount; null when not applicable |
+| `value` | Actual amount; null when not applicable; CHECK `value IS NULL OR value >= 0` |
 | `notes` | |
 | `recovers_log_id` | FK → original log when `status = 'recovery'`; **required** for recovery |
 | `created_at` | |
@@ -377,11 +383,11 @@ No FKs into XNINE systems. No job runners.
 | `metadata` | JSONB; **no secrets**, no service-role material |
 | `created_at` | Immutable |
 
-**Client path:** authenticated INSERT only when `actor_type = 'user'` and
-`user_id = auth.uid()`; SELECT own; no UPDATE/DELETE.
+**Client path:** authenticated **SELECT own only**. No INSERT/UPDATE/DELETE
+privilege or policy — no generic client audit writer.
 
-**Trusted-server path (future):** `system` / `mcp` / `agent` rows via security
-definer writer or host-held `service_role` in Next/MCP host — never agent-held.
+**Trusted path (deferred):** secure server-side writer or DB-trigger mechanism
+for `user` / `system` / `mcp` / `agent` events — never agent-held credentials.
 
 ## Relationship sketch
 
@@ -427,8 +433,9 @@ Aligned with `docs/SECURITY.md` and `docs/PHASE_1B_L3_STOP.md`:
   for authenticated clients on domain tables (prefer close/deactivate/status).
 - Explicit `REVOKE ALL` from `anon`/`authenticated`, then grant only needed DML.
 - `profiles`: users read/insert/update own row only.
-- `audit_logs`: SELECT own; INSERT self-as-`user` only; no client UPDATE/DELETE;
-  non-user actors via future trusted-server path.
+- `audit_logs`: SELECT own only; no client INSERT/UPDATE/DELETE; trusted writing deferred.
+- Trigger/security functions: EXECUTE revoked from API roles; `handle_new_user`
+  EXECUTE only for `supabase_auth_admin`.
 - Sensitive tables: ownership RLS **plus** app/MCP authorization gates.
 - Composite FKs complement RLS (integrity); they do not replace RLS.
 - Service role: process-local on Next.js server / MCP **host** only — never in

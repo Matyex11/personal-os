@@ -1,5 +1,70 @@
 import { describe, expect, it } from "vitest";
-import { logHabitSchema } from "@/modules/habits/schemas";
+import { createHabitSchema, logHabitSchema } from "@/modules/habits/schemas";
+
+describe("createHabitSchema", () => {
+  it("requires and validates cadence", () => {
+    expect(
+      createHabitSchema.safeParse({
+        name: "Run",
+        minValue: 1,
+        targetValue: 2,
+        cadence: { kind: "daily", startOn: "2026-11-01" },
+      }).success,
+    ).toBe(true);
+
+    expect(
+      createHabitSchema.safeParse({
+        name: "Run",
+        minValue: 1,
+        targetValue: 2,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createHabitSchema.safeParse({
+        name: "Lift",
+        minValue: 1,
+        targetValue: 2,
+        cadence: { kind: "weekdays", weekdays: [], startOn: "2026-11-01" },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createHabitSchema.safeParse({
+        name: "Lift",
+        minValue: 1,
+        targetValue: 2,
+        cadence: {
+          kind: "weekdays",
+          weekdays: [0, 8],
+          startOn: "2026-11-01",
+        },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createHabitSchema.safeParse({
+        name: "Lift",
+        minValue: 1,
+        targetValue: 2,
+        cadence: {
+          kind: "daily",
+          startOn: "2026-11-10",
+          endOn: "2026-11-01",
+        },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createHabitSchema.safeParse({
+        name: "Lift",
+        minValue: -1,
+        targetValue: 2,
+        cadence: { kind: "daily", startOn: "2026-11-01" },
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe("logHabitSchema", () => {
   it("accepts a normal completed log", () => {
@@ -27,6 +92,16 @@ describe("logHabitSchema", () => {
       loggedOn: "2026-11-22",
       status: "missed",
       recoversLogId: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative values", () => {
+    const result = logHabitSchema.safeParse({
+      habitId: "11111111-1111-4111-8111-111111111111",
+      loggedOn: "2026-11-22",
+      status: "completed",
+      value: -1,
     });
     expect(result.success).toBe(false);
   });
