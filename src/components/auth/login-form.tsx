@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/forms/field";
 import { Input } from "@/components/ui/input";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/client";
 
 type LoginFormProps = {
@@ -23,10 +24,15 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
     startTransition(async () => {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+      const safeNext = safeNextPath(nextPath);
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: redirectTo },
+        options: {
+          emailRedirectTo: redirectTo,
+          // Existing accounts only — first DEV user is created manually in dashboard.
+          shouldCreateUser: false,
+        },
       });
 
       if (signInError) {

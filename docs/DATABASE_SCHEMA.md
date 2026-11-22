@@ -1,9 +1,9 @@
 # Personal OS — Database Schema (Conceptual)
 
-> **Status:** Design only. **No migrations applied.** Do not create or modify
-> hosted tables until a **dedicated EU development** Supabase project exists and
-> the human L3-approves. Docker stays stopped. SQL under `supabase/migrations/`
-> may be authored later — never against an unknown/production project by default.
+> **Status:** Phase 1B migration **drafted** in
+> `supabase/migrations/20261122190000_phase1b_core.sql` for **personal-os-dev**
+> (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`). **Not applied.** Docker stays stopped.
+> Never run against an unknown/production project by default.
 
 ## Design goals
 
@@ -69,9 +69,11 @@ Named life periods / history frames.
 6. Closing a chapter: set `status = 'closed'`, set `ended_on`, clear `is_current`;
    optionally activate another chapter in the same transaction.
 7. `started_on <= ended_on` when `ended_on` is present.
-8. Chapters are not hard-deleted in normal flows (prefer close); destructive
-   delete is L3 + confirmation and must cascade carefully.
-9. Historical rows that reference a closed chapter remain valid (history preserved).
+8. Chapters are not hard-deleted in normal flows (prefer close). Authenticated
+   clients have **no DELETE** grant/policy; destructive delete is L3 + confirmation.
+9. Historical rows that reference a closed chapter remain valid. If a chapter row
+   is removed via a privileged path, optional child links use
+   `ON DELETE SET NULL (chapter_id)` so `user_id` stays intact.
 
 **Relationships:** Optional/required parent for chapter-scoped activations and
 domain rows; see module activation rules below.
@@ -112,6 +114,7 @@ Use:
 - `UNIQUE (user_id, chapter_id, module_key) WHERE scope = 'chapter'`
 - CHECK: `(scope = 'global' AND chapter_id IS NULL) OR (scope = 'chapter' AND chapter_id IS NOT NULL)`
 - Composite FK when chapter-scoped: `(user_id, chapter_id)` → `chapters (user_id, id)`
+  with `ON DELETE CASCADE` (activation rows are disposable config, not history).
 
 ### `habits`
 
@@ -119,11 +122,14 @@ Use:
 |--------|-------|
 | `id`, `user_id`, `chapter_id?` | Composite ownership to chapter when set |
 | `name`, `description` | |
-| `cadence` | e.g. daily / weekly / custom RRULE later |
+| `cadence` | JSON v1: `daily` \| `weekdays` + `startOn` / optional `endOn` |
 | `min_value` | Minimum acceptable quantity (numeric or boolean-as-0/1) |
 | `target_value` | Aspirational target (≥ min) |
 | `unit` | Optional (`minutes`, `reps`, …) |
-| `is_active` | |
+| `is_active` | Deactivate instead of hard-delete |
+
+Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
+`ON DELETE SET NULL (chapter_id)` (PG17 column list — never nullifies `user_id`).
 
 ### `habit_logs`
 
@@ -166,7 +172,9 @@ Use:
      to `completed` entirely.
    - Trigger or SECURITY DEFINER insert function: verify referenced row’s
      `status IN ('missed','partial')` and `habit_id` matches.
-5. Do not delete the original log when recovering.
+5. Do not delete the original log when recovering. Clients have **no DELETE**
+   privilege on `habit_logs` / `habits`. FK `habit_logs` → `habits` is
+   `ON DELETE RESTRICT` so history cannot be cascade-wiped.
 6. Unique: one primary log per `(habit_id, logged_on)` where
    `status <> 'recovery'`; recoveries are additional rows (unique on
    `(habit_id, recovers_log_id)` for recovery rows).
@@ -198,9 +206,9 @@ separate annotation series.
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `chapter_id?` | |
+| `id`, `user_id`, `chapter_id?` | Optional chapter: `ON DELETE SET NULL (chapter_id)` |
 | `title`, `description` | |
-| `status` | `active`, `paused`, `done`, `dropped` |
+| `status` | `active`, `paused`, `done`, `dropped` (prefer status over delete) |
 | `priority` | Optional ordinal |
 | `target_date` | Optional |
 
@@ -211,7 +219,7 @@ separate annotation series.
 | Column | Notes |
 |--------|-------|
 | `id`, `user_id` | |
-| `project_id` | Optional; composite FK same user |
+| `project_id` | Optional; composite FK; `ON DELETE SET NULL (project_id)` |
 | `title`, `description` | |
 | `status` | `pending`, `hit`, `missed`, `cancelled` |
 | `target_on`, `achieved_on` | |
@@ -221,7 +229,7 @@ separate annotation series.
 | Column | Notes |
 |--------|-------|
 | `id`, `user_id` | |
-| `project_id?`, `milestone_id?` | Optional same-user links; inbox-only allowed |
+| `project_id?`, `milestone_id?` | Optional same-user links; `ON DELETE SET NULL (col)` each |
 | `title`, `notes` | |
 | `status` | `todo`, `doing`, `done`, `cancelled` |
 | `due_on`, `completed_at` | |
@@ -369,6 +377,12 @@ No FKs into XNINE systems. No job runners.
 | `metadata` | JSONB; **no secrets**, no service-role material |
 | `created_at` | Immutable |
 
+**Client path:** authenticated INSERT only when `actor_type = 'user'` and
+`user_id = auth.uid()`; SELECT own; no UPDATE/DELETE.
+
+**Trusted-server path (future):** `system` / `mcp` / `agent` rows via security
+definer writer or host-held `service_role` in Next/MCP host — never agent-held.
+
 ## Relationship sketch
 
 ```
@@ -404,19 +418,23 @@ auth.users ──< profiles
 - `trading_pnl_entries (user_id, period_end)`
 - `audit_logs (user_id, created_at desc)`
 
-## RLS approach (conceptual)
+## RLS + privileges (Phase 1B draft)
 
-Aligned with `docs/SECURITY.md`:
+Aligned with `docs/SECURITY.md` and `docs/PHASE_1B_L3_STOP.md`:
 
 - Enable RLS on every user-data table.
-- Policies: `auth.uid() = user_id` for SELECT/INSERT/UPDATE/DELETE (as appropriate).
-- `profiles`: users read/update own row only.
-- `audit_logs`: clients SELECT own rows only; INSERT via trusted server/MCP
-  **host process** (never expose service-role to agents); no client UPDATE/DELETE.
+- Policies: `auth.uid() = user_id` for SELECT/INSERT/UPDATE. **No DELETE policies**
+  for authenticated clients on domain tables (prefer close/deactivate/status).
+- Explicit `REVOKE ALL` from `anon`/`authenticated`, then grant only needed DML.
+- `profiles`: users read/insert/update own row only.
+- `audit_logs`: SELECT own; INSERT self-as-`user` only; no client UPDATE/DELETE;
+  non-user actors via future trusted-server path.
 - Sensitive tables: ownership RLS **plus** app/MCP authorization gates.
 - Composite FKs complement RLS (integrity); they do not replace RLS.
 - Service role: process-local on Next.js server / MCP **host** only — never in
   browser, never returned to Cursor/agents, never in tool responses.
+
+SQL test drafts (not executed until authorized): `supabase/tests/`.
 
 ## Migration strategy
 

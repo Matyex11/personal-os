@@ -54,17 +54,21 @@ against hosted infra remains L3.
 
 ## RLS approach
 
-Aligned with `docs/DATABASE_SCHEMA.md`:
+Aligned with `docs/DATABASE_SCHEMA.md` and the Phase 1B migration draft:
 
 1. RLS enabled on all user-owned tables.
-2. Policies keyed on `auth.uid() = user_id`.
-3. Browser: anon key + user session only.
-4. Composite FKs `(user_id, parent_id)` prevent cross-user parent refs (integrity
-   layer alongside RLS).
-5. Defence in depth: sensitive modules need app/MCP authorization even when RLS
+2. Policies keyed on `auth.uid() = user_id` (or `id` for `profiles`).
+3. Browser: publishable (anon) key + user session only — **table grants revoked from `anon`**.
+4. Authenticated clients get **SELECT/INSERT/UPDATE** only (no DELETE / TRUNCATE /
+   REFERENCES / TRIGGER / MAINTAIN). Prefer close/deactivate/status over hard delete.
+5. Composite FKs `(user_id, parent_id)` prevent cross-user parent refs; optional
+   links use PG17 `ON DELETE SET NULL (col)` so `user_id` is never nullified.
+6. Defence in depth: sensitive modules need app/MCP authorization even when RLS
    allows the user to read their own rows (AI is not the user).
-6. `audit_logs`: user SELECT own; no client UPDATE/DELETE; inserts from trusted
-   server paths only.
+7. `audit_logs`: authenticated SELECT own; INSERT only with
+   `actor_type = 'user'` and `user_id = auth.uid()`; **no** client UPDATE/DELETE.
+   Non-user actors (`system` / `mcp` / `agent`) require a future **trusted-server**
+   writer (security definer or host-held `service_role`) — never agent credentials.
 
 ## MCP authorization (mandatory)
 
@@ -106,10 +110,20 @@ Require L3 human approval **and** UI/MCP confirmation:
 
 - Original `missed` (and other primary) logs are not rewritten by recovery.
 - Security/analytics code must not “fix” history by updating past statuses.
+- App clients have **no DELETE** grant/policy on `habits` / `habit_logs`.
+- `habit_logs` → `habits` FK is `ON DELETE RESTRICT` so privileged parent removal
+  cannot silently wipe history.
+
+## Auth open-redirect / signup safeguards
+
+- Callback / login `next` validated by `safeNextPath` (same-origin relative only).
+- Magic link uses `shouldCreateUser: false`; first account is manual on DEV.
+- Agents must not change hosted Auth settings without explicit human approval.
 
 ## Audit trail
 
-- Append-only `audit_logs` for important mutations and all MCP admin/sensitive tools.
+- Append-oriented `audit_logs` for important mutations and MCP admin/sensitive tools.
+- Client inserts may only claim `actor_type = 'user'` for `auth.uid()`.
 - Metadata excludes secrets and service-role material.
 
 ## Testing security (initial)
