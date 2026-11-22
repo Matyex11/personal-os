@@ -1,0 +1,15 @@
+---
+description: TypeScript and code quality standards for Personal OS
+alwaysApply: true
+---
+
+# Coding standards
+
+- TypeScript strictness is the default once the app is scaffolded; avoid `any` unless justified and narrow.
+- Validate all external input with **Zod** at boundaries (HTTP, forms, MCP args).
+- Keep server secrets and Supabase **service role** off the client.
+- Prefer clear module APIs over deep cross-module imports of internals.
+- Do not commit generated secrets, personal data dumps, or large binary fixtures.
+- Match existing style when editing; no drive-by refactors outside task scope.
+- Comments only for non-obvious intent; docs for durable decisions go in `docs/DECISIONS.md`.
+- Habit status and finance semantics are domain-critical — follow `docs/DATABASE_SCHEMA.md` and never “simplify” enums by dropping Partial/Recovery or merging PnL with cash movements.

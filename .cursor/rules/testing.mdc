@@ -1,0 +1,14 @@
+---
+description: Testing expectations for Personal OS
+globs: tests/**/*.{ts,tsx,js},**/*.{test,spec}.{ts,tsx},**/playwright.config.*
+alwaysApply: false
+---
+
+# Testing
+
+- Initial stack: **Vitest** (unit/domain) + **Playwright** (E2E). See `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`.
+- Priority domain tests: habit status/min-target rules; finance classifiers (PnL ≠ deposit); Zod schemas; sensitive-flag defaults.
+- Playwright starts with auth smoke and core habit/project journeys once the app boots.
+- Do not claim tests passed unless the command was actually run successfully.
+- DB/RLS tests run only when an approved database target is available — never spin Docker without L3 approval.
+- MCP permission/audit tests belong with the MCP package when Phase 4 starts.

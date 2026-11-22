@@ -1,0 +1,15 @@
+---
+description: Personal OS architecture constraints for all work
+alwaysApply: true
+---
+
+# Architecture
+
+- Personal OS is a **modular monolith** (Next.js). Do not introduce microservices, Kubernetes, or Redis unless a Decision explicitly overrides.
+- Module code belongs under `src/modules/<name>/` with clear boundaries.
+- Supabase (Postgres, Auth, Storage) is the data plane. Use the **Personal OS** project only — never XNINE credentials or databases.
+- MCP is a **separate** Personal OS server/host, not XNINE ops MCP, and not a second domain layer that duplicates business rules unchecked.
+- Docker local Supabase stays **off** unless the human L3-approves starting it.
+- Do not apply hosted migrations or deploy without L3 approval.
+- Prefer adapting existing files over rewriting. Foundation phase: docs/structure only unless the human opened a later phase.
+- Stack defaults: Next.js/TS, Tailwind+shadcn, Recharts, Zod, Vitest, Playwright, Vercel + separate MCP host, GitHub — see `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.

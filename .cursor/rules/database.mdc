@@ -1,0 +1,16 @@
+---
+description: Database and Supabase conventions for Personal OS
+globs: supabase/**/*.{sql,toml},**/DATABASE_SCHEMA.md,src/lib/db/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Database conventions
+
+- Conceptual model lives in `docs/DATABASE_SCHEMA.md`. Do not invent conflicting tables without updating that doc and `docs/DECISIONS.md`.
+- Every user-owned table: `user_id`, RLS enabled, policies `auth.uid() = user_id`.
+- Migrations are versioned SQL under `supabase/migrations/` only — **no** apply without L3 human approval.
+- Foundation / early phases: prefer documenting over applying. Never modify hosted schemas casually.
+- Keep concepts separate: projects, milestones, tasks; finance transactions vs trading PnL; revenue vs profit.
+- Habit log statuses: `completed`, `partial`, `missed`, `not_scheduled`, `recovery` with min vs target.
+- `xnine_tracking` is tracking-only — no FKs or credentials to XNINE systems.
+- Audit logs are append-oriented; no secrets in metadata.

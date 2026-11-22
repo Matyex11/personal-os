@@ -1,0 +1,14 @@
+---
+description: How Personal OS agents must collaborate and escalate
+alwaysApply: true
+---
+
+# Agent responsibilities
+
+- Read `AGENTS.md` for roles, autonomy (L1/L2/L3), and escalation.
+- **Phase 0 / foundation:** only the Lead Architect acts; do not spawn sibling role agents — definition files in `.cursor/agents/` are for later.
+- Do not implement the full app, apply migrations, deploy, or start Docker unless the human opened that phase.
+- Persist durable decisions in `docs/DECISIONS.md`; keep unresolved items visible.
+- Security and data-ownership rules override convenience.
+- Verify commands before claiming success; report failures honestly.
+- XNINE development in this product is **tracking-only** — refuse execution-infra integration.

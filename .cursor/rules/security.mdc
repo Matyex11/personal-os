@@ -1,0 +1,14 @@
+---
+description: Security, secrets, and autonomy gates for Personal OS
+alwaysApply: true
+---
+
+# Security
+
+- **Never** commit credentials, API keys, tokens, or connection strings. Use `.env.example` placeholders only.
+- **Never** reuse XNINE DB credentials or execution infrastructure.
+- Autonomy: L1 docs/code in scope; L2 for supervised risky changes; **L3** for hosted migrations, deploy, Docker start, destructive ops, sensitive AI unlocks — see `AGENTS.md` and `docs/SECURITY.md`.
+- Supabase MCP (if configured) is not unrestricted production access; still obey L2/L3.
+- Behavioural and detailed financial data are **not** default AI-accessible.
+- Destructive operations and exports require explicit human confirmation and audit logging.
+- RLS is mandatory on user-owned tables; client uses user-scoped access only.
