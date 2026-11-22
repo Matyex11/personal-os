@@ -207,14 +207,17 @@ begin
 
   -- Cannot rewrite original missed status
   begin
-    update public.habit_logs set status = 'completed' where id = missed_id;
-    raise exception 'UNEXPECTED_SUCCESS: rewriting missed status';
+    update public.habit_logs
+    set status = 'completed'
+    where id = missed_id;
+
+    raise exception using
+      errcode = 'P0002',
+      message = 'UNEXPECTED_SUCCESS: original habit log was rewritten';
+
   exception
-    when raise_exception then
-      if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
-      if sqlerrm like 'primary missed/partial status is immutable%' then
-        null;
-      else
+    when sqlstate 'P0001' then
+      if sqlerrm <> 'cannot rewrite a habit log that has recovery links' then
         raise;
       end if;
   end;
