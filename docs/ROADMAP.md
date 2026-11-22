@@ -30,7 +30,20 @@ diff); **executing** against hosted infra remains **L3**.
 
 ---
 
-## Phase 1A — Local application foundation *(complete — stop for review)*
+## Phase 1B — DEV wiring + migration drafts *(in progress — L3 apply gated)*
+
+**Authorized:** local app code, Supabase SSR auth, domain services/UI, tests,
+timestamped migration **drafts** against recorded target `personal-os-dev`
+(`qyysmgwdvhftbgwhpbjt`, `eu-central-1`).
+
+**Forbidden until separate L3:** `db push`, migration up, hosted schema mutation,
+Docker, Auth setting changes without human review checklist.
+
+See `docs/AUTH_DEV_SETUP.md` and `docs/PHASE_1B_L3_STOP.md`.
+
+---
+
+## Phase 1A — Local application foundation *(complete)*
 
 **Goal:** Scaffold the modular monolith locally with shell UI and test tooling.
 **No** DB integration, migrations, Supabase connect, Docker, deploy, or agent spawn.

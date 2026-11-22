@@ -99,8 +99,13 @@ supabase/migrations/        # apply only to approved DEV (then PROD) with L3
 tests/unit|e2e
 ```
 
-**Phase 1A:** local shell + pure domain/Zod + tests. **No** Supabase client,
-service role, or network DB calls.
+**Phase 1A:** local shell + pure domain/Zod + tests.
+
+**Phase 1B (current):** Supabase SSR clients (`src/lib/supabase/*`), `src/proxy.ts`
+session refresh via `getClaims()`, domain services under `src/modules/*`,
+data-backed pages, cadence v1, migration **draft**
+`supabase/migrations/20261122190000_phase1b_core.sql` for `personal-os-dev`.
+Publishable key only. **Migrations not applied** until L3.
 
 ## MCP boundary (consistency with MCP_SPEC)
 

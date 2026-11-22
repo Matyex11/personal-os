@@ -121,9 +121,10 @@ Escalate to the human when:
 
 ## Current phase
 
-**Phase 1A complete — stop for human review.** Do not start Phase 1B (Supabase
-connect, migrations, auth wiring) until authorized. Do not apply migrations,
-access/modify hosted Supabase, start Docker, spawn sibling agents, or deploy.
+**Phase 1B — code + migration drafts.** Target `personal-os-dev`
+(`qyysmgwdvhftbgwhpbjt`, `eu-central-1`). **Do not apply migrations** until
+separate explicit L3 approval (`docs/PHASE_1B_L3_STOP.md`). No Docker, no
+service-role for routine ops, no silent Auth setting changes.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

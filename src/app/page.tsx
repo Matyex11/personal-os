@@ -3,63 +3,92 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getOptionalUser } from "@/lib/auth/require-user";
+import { listChapters } from "@/modules/chapters/service";
+import { listHabits } from "@/modules/habits/service";
+import { listProjects } from "@/modules/projects/service";
 
-const questions = [
-  {
-    title: "Where am I?",
-    body: "Current chapter, active modules, and today’s operational picture — once data is connected.",
-    href: "/chapters",
-    cta: "Open chapters",
-  },
-  {
-    title: "What matters now?",
-    body: "Projects, milestones, and tasks that deserve attention this week.",
-    href: "/projects",
-    cta: "Open projects",
-  },
-  {
-    title: "How did I do?",
-    body: "Honest habit adherence, including partial, missed, and linked recovery — no vanity rewrites.",
-    href: "/habits",
-    cta: "Open habits",
-  },
-] as const;
+export default async function DashboardPage() {
+  const user = await getOptionalUser();
+  const chapters = user ? await listChapters() : null;
+  const habits = user ? await listHabits() : null;
+  const projects = user ? await listProjects() : null;
 
-export default function DashboardPage() {
+  const current =
+    chapters?.ok ? chapters.data.find((chapter) => chapter.is_current) : undefined;
+
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        description="Shell overview for Personal OS. No live metrics yet — Phase 1A is structure only."
+        description="Live shell over Personal OS DEV. Empty states stay honest when schema is not applied yet."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {questions.map((item) => (
-          <Card key={item.title} className="bg-card/80">
-            <CardHeader>
-              <CardTitle>{item.title}</CardTitle>
-              <CardDescription>{item.body}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="outline" size="sm">
-                <Link href={item.href}>{item.cta}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="mt-6">
+      {!user ? (
         <EmptyState
-          title="No data connected"
-          description="Auth and the EU DEV Supabase project arrive in Phase 1B. This shell stays honest: no fabricated personal stats."
+          title="Sign in to continue"
+          description="Protected routes require a magic-link session against personal-os-dev."
           action={
-            <Button asChild variant="secondary" size="sm">
-              <Link href="/settings">Review settings placeholders</Link>
+            <Button asChild>
+              <Link href="/login">Sign in</Link>
             </Button>
           }
         />
-      </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="bg-card/80">
+            <CardHeader>
+              <CardTitle>Where am I?</CardTitle>
+              <CardDescription>
+                {current
+                  ? `Current chapter: ${current.title}`
+                  : chapters && !chapters.ok
+                    ? chapters.message
+                    : "No current chapter yet."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/chapters">Open chapters</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/80">
+            <CardHeader>
+              <CardTitle>What matters?</CardTitle>
+              <CardDescription>
+                {projects?.ok
+                  ? `${projects.data.length} project(s)`
+                  : projects && !projects.ok
+                    ? projects.message
+                    : "Projects unavailable."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/projects">Open projects</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/80">
+            <CardHeader>
+              <CardTitle>How did I do?</CardTitle>
+              <CardDescription>
+                {habits?.ok
+                  ? `${habits.data.length} habit(s)`
+                  : habits && !habits.ok
+                    ? habits.message
+                    : "Habits unavailable."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/habits">Open habits</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
