@@ -5,10 +5,10 @@
 | Item | Status |
 |------|--------|
 | GitHub repo `Matyex11/personal-os` | Present; foundation branch has Phase 0 docs |
-| `package.json` / app code | **Absent** — greenfield (Phase 1+) |
+| `package.json` / app code | **Phase 1A present** — Next.js 16 App Router shell under `src/` (no DB client) |
 | Supabase CLI config | `supabase/config.toml` (`project_id = "personal-os-1"`, Postgres **17**) |
 | `supabase/migrations/` | Empty placeholder; **no applied migrations** |
-| `.env` / credentials | None in repo |
+| `.env` / credentials | `.env.example` placeholders only; Supabase vars commented until 1B |
 | Docker / local Supabase | **Stopped**; must not be started without L3 |
 | Hosted Supabase link | **Not verified / not assumed safe** — treat any existing hosted project as unknown until a dedicated **EU development** project is provisioned (D015) |
 | XNINE infra | Must not be reused |
@@ -73,20 +73,34 @@ the human names the DEV project and approves the exact action.
    (see `DATABASE_SCHEMA.md` reporting table).
 5. Finance reporting must not derive ambiguous “profit” from mixed transactions.
 
-## Modular monolith layout (target)
+## Modular monolith layout (Phase 1A actual + future)
 
 ```
 src/
-  app/
-  modules/…          # including finances, behavioural (sensitive)
-  lib/db|auth|validation|audit
+  app/                      # /, /chapters, /habits, /projects, /settings
   components/
-mcp/                 # in-repo MCP package (Phase 4+); separate deployable
-supabase/migrations/ # apply only to approved DEV (then PROD) with L3
+    layout/                 # AppShell, AppNav, PageHeader
+    ui/                     # shadcn-style button, input, label, card, separator
+    forms/                  # Field wrapper
+    states/                 # EmptyState, LoadingState
+  modules/
+    chapters/schemas.ts
+    habits/{schemas,reporting}.ts
+    projects/schemas.ts
+    # finances/behavioural/… later phases
+  lib/
+    utils.ts · errors.ts
+    auth/session.ts         # placeholder only (1A)
+    validation/common.ts
+    db/ · audit/            # README stubs until 1B+
+  types/domain.ts
+mcp/                        # Phase 4+
+supabase/migrations/        # apply only to approved DEV (then PROD) with L3
 tests/unit|e2e
 ```
 
-Phase 0/0.1: placeholders and docs only — **no** Next.js scaffold yet.
+**Phase 1A:** local shell + pure domain/Zod + tests. **No** Supabase client,
+service role, or network DB calls.
 
 ## MCP boundary (consistency with MCP_SPEC)
 
@@ -99,10 +113,13 @@ Phase 0/0.1: placeholders and docs only — **no** Next.js scaffold yet.
 
 | Layer | Tool | Focus |
 |-------|------|-------|
-| Unit | Vitest | Habit status/recovery reporting, finance classifiers, Zod |
-| E2E | Playwright | Auth magic-link smoke, habit log (incl. recovery link), project tree |
+| Unit | Vitest 3 + Testing Library | Habit reporting, Zod recovery rules, UI primitives (Phase 1A ✅) |
+| E2E | Playwright | Shell navigation (Phase 1A ✅); auth/habit flows in 1B+ |
 | DB | When DEV DB available | RLS + composite ownership; never start Docker without L3 |
 | MCP | Phase 4 | Permission matrix, sensitive denial, audit events |
+
+**Runtime note:** Next 16 / Playwright require Node >= 20.9. Launch tools with a
+system Node binary if an agent-bundled Node 18 appears earlier on PATH.
 
 ## Defaults (provisional product decisions)
 

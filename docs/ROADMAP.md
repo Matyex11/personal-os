@@ -24,45 +24,55 @@ diff); **executing** against hosted infra remains **L3**.
 
 ---
 
-## Phase 0.1 — Architecture review *(current)*
+## Phase 0.1 — Architecture review
 
-**Goal:** Revise documentation only for env separation, DB integrity, habit
-recovery, finance clarity, MCP security, and provisional product defaults.
-
-**Out of scope:** `package.json`, scaffold, migrations apply, hosted Supabase
-access, Docker, agent spawn, deploy.
-
-**Exit criteria:** Human accepts (or overrides) provisional decisions D013–D024;
-authorizes Phase 1.
+**Status:** Accepted. Provisional decisions D013–D024 stand unless human overrides.
 
 ---
 
-## Phase 1 — First implementation build (explicit next phase)
+## Phase 1A — Local application foundation *(complete — stop for review)*
 
-**Goal:** Local vertical slice of the modular monolith wired to a **named
-Personal OS EU DEV** Supabase project (no XNINE, no PROD, no Vercel).
+**Goal:** Scaffold the modular monolith locally with shell UI and test tooling.
+**No** DB integration, migrations, Supabase connect, Docker, deploy, or agent spawn.
+
+Delivered:
+
+1. Next.js 16 App Router + TypeScript strict + Tailwind 4 + shadcn-style UI + Zod
+2. Vitest 3 + Playwright configs and initial tests
+3. Routes: Dashboard, Chapters, Habits, Projects, Settings (placeholders)
+4. Domain modules (schemas + habit reporting helpers) without persistence
+5. Auth session placeholder; `.env.example` with Supabase vars commented
+
+**Exit criteria:** Typecheck, unit tests, e2e navigation, and production build
+pass locally → human review → authorize **Phase 1B**.
+
+---
+
+## Phase 1B — DEV Supabase + vertical slice *(next after human OK)*
+
+**Goal:** Wire the local app to a **named Personal OS EU DEV** Supabase project
+(no XNINE, no PROD, no Vercel).
 
 In scope:
 
-1. Scaffold Next.js + TypeScript + Tailwind + shadcn + Zod + Vitest + Playwright.
-2. Wire `.env.example` + local secrets to the **DEV** project only (never commit secrets).
-3. Author **first migration(s)** for: `profiles`, `chapters`, `module_activations`
+1. Human provides concrete DEV project ref; wire `.env.local` (never commit secrets).
+2. Author **first migration(s)** for: `profiles`, `chapters`, `module_activations`
    (global/chapter scope), `habits`, `habit_logs` (recovery link model),
    `projects`, `milestones`, `tasks`, `audit_logs` (+ RLS + composite FKs).
    **Apply only after L3** naming the DEV project.
-4. Auth: **email magic link** (D014).
-5. Minimal UI: current chapter, module toggles, habit log (all statuses +
+3. Auth: **email magic link** (D014).
+4. Minimal UI: current chapter, module toggles, habit log (all statuses +
    recovery as linked event), project → milestone → task.
-6. Vitest: habit status/recovery reporting rules; Playwright: auth + habit smoke.
-7. Defaults: timezone `Europe/Bucharest`, base currency `RON` (profile).
+5. Expand Vitest/Playwright for auth + habit persistence smoke.
+6. Defaults: timezone `Europe/Bucharest`, base currency `RON` (profile).
 
-**Explicitly out of Phase 1:**
+**Explicitly out of Phase 1B:**
 
 - **Vercel deploy** (D023)
 - Finances / behavioural / physical UI
 - MCP server implementation
 - Docker-required workflows
-- Check-ins / reviews (Phase 2) — success criteria for “full v0” span later phases
+- Check-ins / reviews (Phase 2)
 - XNINE execution integration
 - Microservices / Redis / K8s
 - PROD migrations
@@ -105,7 +115,8 @@ simple project tree; CI unit tests run; migrations applied only with L3.
 | Phase | Vitest | Playwright | Other |
 |-------|--------|------------|-------|
 | 0 / 0.1 | Document only | Document only | |
-| 1 | Habit + recovery rules, Zod | Auth + habit smoke (local/DEV) | |
+| 1A | Habit + recovery rules, Zod, UI | Shell navigation | ✅ executed |
+| 1B | Persistence helpers | Auth + habit smoke (DEV) | |
 | 2–3 | Domain math / finance classifiers | Core journeys | RLS on DEV |
 | 4 | MCP permission matrix | Confirmation flows | Audit assertions |
 
