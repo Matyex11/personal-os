@@ -171,18 +171,28 @@ Use:
    `status <> 'recovery'`; recoveries are additional rows (unique on
    `(habit_id, recovers_log_id)` for recovery rows).
 
-#### Status → reporting effects
+#### Status → reporting effects (R005 resolved)
 
-| Status | Counts as scheduled day? | Adherence numerator | Streak impact | Notes |
-|--------|--------------------------|---------------------|---------------|-------|
-| `completed` | Yes | Full credit (1) | Continues / builds | Met **target** (or boolean done) |
-| `partial` | Yes | **Configurable** credit — provisional code default `0.5` (R005 unresolved) | Does **not** equal full streak day unless product setting says so | Met **min**, below target |
-| `missed` | Yes | 0 | Breaks strict streak | **Permanent** historical fact |
-| `not_scheduled` | No | Excluded from denominator | Neutral | Off-cadence |
-| `recovery` | No (separate event) | Optional “recovery credit” series — **never** replaces the miss in history charts | Does not rewrite past streak; may show on a recovery timeline | Linked via `recovers_log_id` |
+Denominator = **expected scheduled occurrences** for the window (from cadence),
+not merely rows that happen to exist in `habit_logs`.
 
-Historical adherence charts must plot the original statuses. Recovery appears as
-a linked annotation/series, not as an overwrite of the miss.
+Two metrics (no numeric “partial credit”):
+
+- **Target attainment** = `completed / scheduledOccurrences`
+- **Minimum adherence** = `(completed + partial) / scheduledOccurrences`
+
+| Outcome | In denominator? | Target numerator | Minimum numerator | Notes |
+|---------|-----------------|------------------|-------------------|-------|
+| `completed` | Yes | Yes | Yes | Met **target** |
+| `partial` | Yes | No | Yes | Met **min**, below target |
+| `missed` | Yes | No | No | Permanent historical fact |
+| **unlogged** | Yes | No | No | Scheduled occurrence with **no** primary log — must be exposed, never silently omitted |
+| `not_scheduled` | No | — | — | Off-cadence |
+| `recovery` | No | — | — | Linked event only; **never** alters historical adherence |
+
+Reporting is read-only: no automatic historical backfill and no mutation of old
+records. Historical charts plot original primary statuses; recovery is a
+separate annotation series.
 
 ### `projects`
 

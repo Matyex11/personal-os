@@ -52,6 +52,20 @@ the bottom until the human decides.
   is a **separate** row with `recovers_log_id`; it must not rewrite historical
   adherence. Reporting rules live in `DATABASE_SCHEMA.md`.
 
+### D025 — Habit adherence dual metrics (resolves R005)
+
+- **Context:** Numeric “partial credit” (e.g. 0.5) was provisional and ambiguous.
+- **Choice:** Two rates over **expected scheduled occurrences**:
+  - Target attainment = `completed / scheduledOccurrences`
+  - Minimum adherence = `(completed + partial) / scheduledOccurrences`
+  - `missed` and **unlogged** scheduled days → 0 on both numerators, still in
+    the denominator
+  - `not_scheduled` and `recovery` excluded from the denominator
+  - Recovery never alters historical adherence; no backfill / mutation of old
+    rows; unlogged scheduled dates must be surfaced explicitly
+- **Consequences:** Removed `partialCredit` / `PROVISIONAL_PARTIAL_CREDIT` from
+  reporting code. UI should present both rates. **R005 resolved.**
+
 ### D008 — Projects ≠ milestones ≠ tasks
 
 - **Choice:** Three entities with optional same-user FKs (composite where practical).
@@ -161,7 +175,6 @@ before Phase 1 without treating it as an emergency.
 | R002 | Concrete Supabase **DEV** (and later PROD) project refs | Human must provide; do not invent or scrape |
 | R003 | MCP host vendor | Deferred (D017 / ex-U005) |
 | R004 | FX policy for cross-currency transfers | Rates source, mid-market vs booked rate |
-| R005 | Partial-credit numeric policy for habit `partial` | **Still unresolved.** Code exposes configurable `partialCredit` with **provisional** default `0.5` (`PROVISIONAL_PARTIAL_CREDIT`) — not a finalized product policy. Alternatives remain: other fractions or a binary “min met” UI flag. |
 | R006 | Recharts vs lighter charts if performance bites | Ex-U012; accepted for v0 |
 | R007 | Whether PROD may ever be same org different project only | Assumed separate projects |
 

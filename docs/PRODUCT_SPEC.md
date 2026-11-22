@@ -41,7 +41,11 @@ trustworthy data and deliberate reflection—not generic productivity noise.
 - A **missed** day stays missed in history forever.
 - **Recovery** is an additional linked event that can be shown and credited
   separately — it must not overwrite the original log or fake past streaks.
-- **Not scheduled** days are excluded from adherence denominators.
+- **Not scheduled** and **recovery** events are excluded from adherence
+  denominators. Reporting uses two rates over expected scheduled occurrences:
+  **target attainment** (completed only) and **minimum adherence**
+  (completed + partial). Unlogged scheduled days are exposed as unlogged — never
+  silently omitted.
 
 ## Money honesty
 
