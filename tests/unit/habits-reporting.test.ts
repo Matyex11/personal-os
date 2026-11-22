@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { adherenceContribution, summarizeAdherence } from "@/modules/habits/reporting";
+import {
+  PROVISIONAL_PARTIAL_CREDIT,
+  adherenceContribution,
+  summarizeAdherence,
+} from "@/modules/habits/reporting";
 
 describe("habit adherence reporting", () => {
   it("treats completed as full credit", () => {
@@ -22,6 +26,16 @@ describe("habit adherence reporting", () => {
     expect(adherenceContribution("recovery").includeInDenominator).toBe(false);
   });
 
+  it("uses provisional partial credit by default without finalizing R005", () => {
+    expect(PROVISIONAL_PARTIAL_CREDIT).toBe(0.5);
+    expect(adherenceContribution("partial").credit).toBe(PROVISIONAL_PARTIAL_CREDIT);
+  });
+
+  it("allows overriding partial credit explicitly", () => {
+    expect(adherenceContribution("partial", { partialCredit: 0 }).credit).toBe(0);
+    expect(adherenceContribution("partial", { partialCredit: 1 }).credit).toBe(1);
+  });
+
   it("summarizes mixed statuses without rewriting misses", () => {
     const summary = summarizeAdherence([
       "completed",
@@ -33,6 +47,13 @@ describe("habit adherence reporting", () => {
 
     expect(summary.scheduledDays).toBe(3);
     expect(summary.credit).toBe(1.5);
+    expect(summary.rate).toBeCloseTo(0.5);
+  });
+
+  it("honors configured partial credit in summaries", () => {
+    const summary = summarizeAdherence(["partial", "completed"], { partialCredit: 0 });
+    expect(summary.scheduledDays).toBe(2);
+    expect(summary.credit).toBe(1);
     expect(summary.rate).toBeCloseTo(0.5);
   });
 });

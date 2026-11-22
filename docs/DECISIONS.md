@@ -161,7 +161,7 @@ before Phase 1 without treating it as an emergency.
 | R002 | Concrete Supabase **DEV** (and later PROD) project refs | Human must provide; do not invent or scrape |
 | R003 | MCP host vendor | Deferred (D017 / ex-U005) |
 | R004 | FX policy for cross-currency transfers | Rates source, mid-market vs booked rate |
-| R005 | Partial-credit numeric policy for habit `partial` | Default 0.5 vs binary “min met” flag in UI |
+| R005 | Partial-credit numeric policy for habit `partial` | **Still unresolved.** Code exposes configurable `partialCredit` with **provisional** default `0.5` (`PROVISIONAL_PARTIAL_CREDIT`) — not a finalized product policy. Alternatives remain: other fractions or a binary “min met” UI flag. |
 | R006 | Recharts vs lighter charts if performance bites | Ex-U012; accepted for v0 |
 | R007 | Whether PROD may ever be same org different project only | Assumed separate projects |
 

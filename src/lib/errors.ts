@@ -19,12 +19,16 @@ export class AppError extends Error {
   }
 }
 
+const SAFE_FALLBACK = "Something went wrong.";
+
+/**
+ * Maps errors to user-visible copy.
+ * Only `AppError` messages are considered intentional UX text.
+ * Unexpected `Error` / unknown values must not leak internal exception details.
+ */
 export function toUserMessage(error: unknown): string {
   if (error instanceof AppError) {
     return error.message;
   }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "Something went wrong.";
+  return SAFE_FALLBACK;
 }

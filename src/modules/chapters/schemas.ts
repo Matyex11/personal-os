@@ -20,6 +20,15 @@ export const createChapterSchema = z
         path: ["status"],
       });
     }
+
+    if (value.status === "planned" && value.endedOn) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Planned chapter cannot have endedOn",
+        path: ["endedOn"],
+      });
+    }
+
     if (value.status === "active" && value.endedOn) {
       ctx.addIssue({
         code: "custom",
@@ -27,6 +36,15 @@ export const createChapterSchema = z
         path: ["endedOn"],
       });
     }
+
+    if (value.status === "closed" && !value.endedOn) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Closed chapter requires endedOn",
+        path: ["endedOn"],
+      });
+    }
+
     if (value.endedOn && value.endedOn < value.startedOn) {
       ctx.addIssue({
         code: "custom",

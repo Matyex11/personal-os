@@ -63,12 +63,15 @@ Named life periods / history frames.
 
 1. At most **one** chapter with `is_current = true` per `user_id` (partial unique index).
 2. The current chapter must have `status = 'active'` and `ended_on IS NULL`.
-3. Closing a chapter: set `status = 'closed'`, set `ended_on`, clear `is_current`;
+3. `planned`: `ended_on` must be NULL; `is_current` must be false.
+4. `active`: `ended_on` must be NULL.
+5. `closed`: `ended_on` **required**; `is_current` must be false.
+6. Closing a chapter: set `status = 'closed'`, set `ended_on`, clear `is_current`;
    optionally activate another chapter in the same transaction.
-4. `started_on <= ended_on` when `ended_on` is present.
-5. Chapters are not hard-deleted in normal flows (prefer close); destructive
+7. `started_on <= ended_on` when `ended_on` is present.
+8. Chapters are not hard-deleted in normal flows (prefer close); destructive
    delete is L3 + confirmation and must cascade carefully.
-6. Historical rows that reference a closed chapter remain valid (history preserved).
+9. Historical rows that reference a closed chapter remain valid (history preserved).
 
 **Relationships:** Optional/required parent for chapter-scoped activations and
 domain rows; see module activation rules below.
@@ -136,13 +139,34 @@ Use:
 
 #### Recovery model (immutable history)
 
-1. A scheduled miss is stored as `status = 'missed'` and **remains forever**
+1. A scheduled miss/partial is stored and **remains forever** as that status
    (no UPDATE of that row’s status to completed/partial/recovery).
 2. Recovery is a **separate** `habit_logs` row with `status = 'recovery'` and
-   `recovers_log_id` pointing at the original missed (or partial) log.
-3. CHECK: `status = 'recovery' <=> recovers_log_id IS NOT NULL`.
-4. Composite FK: recovery and original share the same `user_id` (and habit).
-5. Do not delete the original missed log when recovering.
+   `recovers_log_id` pointing at the original **missed or partial** log.
+3. Domain/server requirements (also enforced in app code before insert):
+   - Original log must belong to the **same user** as the recovery.
+   - Original log must belong to the **same habit**.
+   - Original `status` must be `missed` or `partial` (not completed /
+     not_scheduled / recovery).
+   - Original log row must **remain unchanged** (append-only recovery).
+4. Database constraints to enforce (Phase 1B migrations):
+   - CHECK: `(status = 'recovery') = (recovers_log_id IS NOT NULL)`.
+   - UNIQUE `(user_id, id)` on `habit_logs` and composite FK
+     `(user_id, recovers_log_id) → habit_logs (user_id, id)` so recovery cannot
+     point at another user’s log.
+   - Prefer also carrying `habit_id` on the FK path: composite
+     `(user_id, habit_id, recovers_log_id)` → parent unique
+     `(user_id, habit_id, id)` **or** a trigger/RPC that rejects cross-habit
+     links (CHECK alone cannot compare to another row without a trigger).
+   - Trigger (recommended): `BEFORE UPDATE` on `habit_logs` that rejects
+     changes to `status` / `logged_on` / `habit_id` / `user_id` for rows that
+     are referenced by any `recovers_log_id`, and rejects updating a primary
+     log’s `status` away from `missed`/`partial` when a recovery already
+     exists; optionally reject any `status` rewrite from `missed`/`partial`
+     to `completed` entirely.
+   - Trigger or SECURITY DEFINER insert function: verify referenced row’s
+     `status IN ('missed','partial')` and `habit_id` matches.
+5. Do not delete the original log when recovering.
 6. Unique: one primary log per `(habit_id, logged_on)` where
    `status <> 'recovery'`; recoveries are additional rows (unique on
    `(habit_id, recovers_log_id)` for recovery rows).
@@ -152,7 +176,7 @@ Use:
 | Status | Counts as scheduled day? | Adherence numerator | Streak impact | Notes |
 |--------|--------------------------|---------------------|---------------|-------|
 | `completed` | Yes | Full credit (1) | Continues / builds | Met **target** (or boolean done) |
-| `partial` | Yes | Partial credit (configurable; default 0.5) or “min met” flag | Does **not** equal full streak day unless product setting says so | Met **min**, below target |
+| `partial` | Yes | **Configurable** credit — provisional code default `0.5` (R005 unresolved) | Does **not** equal full streak day unless product setting says so | Met **min**, below target |
 | `missed` | Yes | 0 | Breaks strict streak | **Permanent** historical fact |
 | `not_scheduled` | No | Excluded from denominator | Neutral | Off-cadence |
 | `recovery` | No (separate event) | Optional “recovery credit” series — **never** replaces the miss in history charts | Does not rewrite past streak; may show on a recovery timeline | Linked via `recovers_log_id` |
