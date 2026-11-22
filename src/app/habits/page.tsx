@@ -4,23 +4,44 @@ import { ActionForm } from "@/components/forms/action-form";
 import { Field } from "@/components/forms/field";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createHabitAction, logHabitAction } from "@/app/actions/domain";
-import { listHabitLogs, listHabits, reportHabitAdherence } from "@/modules/habits/service";
+import { HabitLogForm } from "@/components/habits/habit-log-form";
+import { HabitLogHistory } from "@/components/habits/habit-log-history";
+import { HabitSelector } from "@/components/habits/habit-selector";
+import { createHabitAction } from "@/app/actions/domain";
+import {
+  listHabitLogs,
+  listHabitRecoveryTargets,
+  listHabits,
+  reportHabitAdherence,
+} from "@/modules/habits/service";
+import { selectEligibleHabits } from "@/modules/habits/recovery-targets";
 
 export const metadata = {
   title: "Habits",
 };
 
-export default async function HabitsPage() {
-  const habits = await listHabits();
+export default async function HabitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ habit?: string }>;
+}) {
+  const params = await searchParams;
+  const habitsResult = await listHabits();
   const today = new Date().toISOString().slice(0, 10);
   const monthStart = `${today.slice(0, 8)}01`;
 
-  const firstHabit = habits.ok ? habits.data[0] : undefined;
-  const logs = firstHabit ? await listHabitLogs(firstHabit.id) : null;
-  const report = firstHabit
+  const eligible =
+    habitsResult.ok ? selectEligibleHabits(habitsResult.data) : [];
+  const selectedHabit =
+    eligible.find((habit) => habit.id === params.habit) ?? eligible[0];
+
+  const logs = selectedHabit ? await listHabitLogs(selectedHabit.id) : null;
+  const recoveryTargets = selectedHabit
+    ? await listHabitRecoveryTargets({ habitId: selectedHabit.id })
+    : null;
+  const report = selectedHabit
     ? await reportHabitAdherence({
-        habitId: firstHabit.id,
+        habitId: selectedHabit.id,
         fromOn: monthStart,
         toOn: today,
       })
@@ -30,94 +51,129 @@ export default async function HabitsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Habits"
-        description="Cadence-driven expected days, five statuses, linked recovery, and dual adherence (target + minimum) with unlogged days exposed."
+        description="Select a habit, log any status, and link recovery to missed or partial history without rewriting originals."
       />
 
-      {!habits.ok ? (
-        <EmptyState title="Habits unavailable" description={habits.message} />
-      ) : habits.data.length === 0 ? (
+      {!habitsResult.ok ? (
+        <EmptyState title="Habits unavailable" description={habitsResult.message} />
+      ) : habitsResult.data.length === 0 ? (
         <EmptyState
           title="No habits yet"
-          description="Create a habit with daily or weekday cadence. Persistence requires applied DEV migrations."
+          description="Create a habit with daily or weekday cadence, then log outcomes below."
         />
       ) : (
-        <div className="grid gap-3">
-          {habits.data.map((habit) => (
-            <Card key={habit.id}>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Habits</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <HabitSelector
+                habits={eligible.map((habit) => ({
+                  id: habit.id,
+                  name: habit.name,
+                  is_active: habit.is_active,
+                }))}
+                selectedHabitId={selectedHabit!.id}
+              />
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {eligible.map((habit) => (
+                  <li key={habit.id}>
+                    <span className={habit.id === selectedHabit!.id ? "font-medium text-foreground" : ""}>
+                      {habit.name}
+                    </span>
+                    {" · "}
+                    min {habit.min_value} / target {habit.target_value}
+                    {habit.unit ? ` ${habit.unit}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {report?.ok ? (
+            <Card>
               <CardHeader>
-                <CardTitle>{habit.name}</CardTitle>
+                <CardTitle>Adherence · {report.data.habit.name}</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
+              <CardContent className="space-y-2 text-sm">
                 <p>
-                  min {habit.min_value} / target {habit.target_value}
-                  {habit.unit ? ` ${habit.unit}` : ""} · cadence {JSON.stringify(habit.cadence)}
+                  Scheduled {report.data.summary.scheduledOccurrences} · completed{" "}
+                  {report.data.summary.completedCount} · partial {report.data.summary.partialCount} ·
+                  missed {report.data.summary.missedCount} · unlogged{" "}
+                  {report.data.summary.unloggedCount}
                 </p>
+                <p>
+                  Target attainment:{" "}
+                  {report.data.summary.targetAttainment === null
+                    ? "n/a"
+                    : `${Math.round(report.data.summary.targetAttainment * 100)}%`}
+                </p>
+                <p>
+                  Minimum adherence:{" "}
+                  {report.data.summary.minimumAdherence === null
+                    ? "n/a"
+                    : `${Math.round(report.data.summary.minimumAdherence * 100)}%`}
+                </p>
+                {report.data.summary.unloggedDates.length > 0 ? (
+                  <p className="text-muted-foreground">
+                    Unlogged: {report.data.summary.unloggedDates.join(", ")}
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
-          ))}
-        </div>
+          ) : report && !report.ok ? (
+            <EmptyState title="Adherence unavailable" description={report.message} />
+          ) : null}
+
+          {selectedHabit && logs?.ok ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HabitLogHistory habitName={selectedHabit.name} logs={logs.data} />
+              </CardContent>
+            </Card>
+          ) : logs && !logs.ok ? (
+            <EmptyState title="Logs unavailable" description={logs.message} />
+          ) : null}
+
+          {selectedHabit && recoveryTargets?.ok ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Log outcome</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HabitLogForm
+                  key={selectedHabit.id}
+                  habitId={selectedHabit.id}
+                  habitName={selectedHabit.name}
+                  today={today}
+                  initialTargets={recoveryTargets.data.items}
+                  initialNextCursor={recoveryTargets.data.nextCursor}
+                />
+              </CardContent>
+            </Card>
+          ) : recoveryTargets && !recoveryTargets.ok ? (
+            <EmptyState
+              title="Recovery targets unavailable"
+              description={recoveryTargets.message}
+            />
+          ) : null}
+        </>
       )}
-
-      {report?.ok ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Adherence · {report.data.habit.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              Scheduled {report.data.summary.scheduledOccurrences} · completed{" "}
-              {report.data.summary.completedCount} · partial {report.data.summary.partialCount} ·
-              missed {report.data.summary.missedCount} · unlogged {report.data.summary.unloggedCount}
-            </p>
-            <p>
-              Target attainment:{" "}
-              {report.data.summary.targetAttainment === null
-                ? "n/a"
-                : `${Math.round(report.data.summary.targetAttainment * 100)}%`}
-            </p>
-            <p>
-              Minimum adherence:{" "}
-              {report.data.summary.minimumAdherence === null
-                ? "n/a"
-                : `${Math.round(report.data.summary.minimumAdherence * 100)}%`}
-            </p>
-            {report.data.summary.unloggedDates.length > 0 ? (
-              <p className="text-muted-foreground">
-                Unlogged: {report.data.summary.unloggedDates.join(", ")}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {firstHabit && logs?.ok ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent logs · {firstHabit.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {logs.data.length === 0 ? (
-              <p className="text-muted-foreground">No logs yet.</p>
-            ) : (
-              logs.data.map((log) => (
-                <div key={log.id} className="flex justify-between gap-3 border-b border-border/60 py-2">
-                  <span>
-                    {log.logged_on} · {log.status}
-                    {log.recovers_log_id ? ` · recovers ${log.recovers_log_id.slice(0, 8)}` : ""}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
 
       <Card>
         <CardHeader>
           <CardTitle>New habit</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActionForm action={createHabitAction} submitLabel="Create habit" className="grid gap-3 sm:grid-cols-2">
+          <ActionForm
+            action={createHabitAction}
+            submitLabel="Create habit"
+            className="grid gap-3 sm:grid-cols-2"
+          >
             <Field id="name" label="Name">
               <Input id="name" name="name" required />
             </Field>
@@ -142,47 +198,18 @@ export default async function HabitsPage() {
               <Input id="minValue" name="minValue" type="number" defaultValue={1} min={0} step="any" />
             </Field>
             <Field id="targetValue" label="Target">
-              <Input id="targetValue" name="targetValue" type="number" defaultValue={1} min={0} step="any" />
+              <Input
+                id="targetValue"
+                name="targetValue"
+                type="number"
+                defaultValue={1}
+                min={0}
+                step="any"
+              />
             </Field>
           </ActionForm>
         </CardContent>
       </Card>
-
-      {firstHabit ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Log · {firstHabit.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ActionForm action={logHabitAction} submitLabel="Save log" className="grid gap-3 sm:grid-cols-2">
-              <input type="hidden" name="habitId" value={firstHabit.id} />
-              <Field id="loggedOn" label="Date">
-                <Input id="loggedOn" name="loggedOn" type="date" defaultValue={today} required />
-              </Field>
-              <Field id="status" label="Status">
-                <select
-                  id="status"
-                  name="status"
-                  defaultValue="completed"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="completed">completed</option>
-                  <option value="partial">partial</option>
-                  <option value="missed">missed</option>
-                  <option value="not_scheduled">not_scheduled</option>
-                  <option value="recovery">recovery</option>
-                </select>
-              </Field>
-              <Field id="recoversLogId" label="Recovers log id (recovery only)">
-                <Input id="recoversLogId" name="recoversLogId" placeholder="uuid" />
-              </Field>
-              <Field id="value" label="Value">
-                <Input id="value" name="value" type="number" step="any" />
-              </Field>
-            </ActionForm>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }

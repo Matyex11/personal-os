@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 type ActionResult = { ok: true; data?: unknown } | { ok: false; message: string };
@@ -13,6 +14,7 @@ type ActionFormProps = {
 };
 
 export function ActionForm({ action, children, submitLabel, className }: ActionFormProps) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function ActionForm({ action, children, submitLabel, className }: ActionF
           if (result.ok) {
             setMessage("Saved.");
             event.currentTarget.reset();
+            router.refresh();
           } else {
             setError(result.message);
           }

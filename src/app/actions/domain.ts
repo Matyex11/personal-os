@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { closeChapter, createChapter } from "@/modules/chapters/service";
-import { createHabit, logHabit } from "@/modules/habits/service";
+import {
+  createHabit,
+  listHabitRecoveryTargets,
+  logHabit,
+} from "@/modules/habits/service";
 import { upsertModuleActivation } from "@/modules/modules/service";
 import {
   createMilestone,
@@ -79,6 +83,14 @@ export async function logHabitAction(formData: FormData) {
   });
   if (result.ok) revalidatePath("/habits");
   return result;
+}
+
+/** Load / page recovery-selector candidates (independent of recent history). */
+export async function listHabitRecoveryTargetsAction(input: {
+  habitId: string;
+  cursor?: string | null;
+}) {
+  return listHabitRecoveryTargets(input);
 }
 
 export async function createProjectAction(formData: FormData) {
