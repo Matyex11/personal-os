@@ -137,7 +137,8 @@ Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
   weekdays 1–7, invalid `endOn < startOn`, negative mins).
 - DB: fail-closed `public.is_valid_habit_cadence(jsonb)` (IMMUTABLE, SECURITY
   INVOKER; always TRUE/FALSE; authenticated EXECUTE for CHECK) with
-  `CHECK (… IS TRUE)` + `min_value >= 0`.
+  `CHECK (… IS TRUE)` + `min_value >= 0`. If `weekdays` is present for any
+  kind, it must be a 1–7 length array of integers 1..7 (Zod parity).
 
 ### `habit_logs`
 
@@ -182,7 +183,8 @@ Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
      `status IN ('missed','partial')` and `habit_id` matches.
 5. Do not delete the original log when recovering. Clients have **no DELETE**
    privilege on `habit_logs` / `habits`. FKs `habit_logs` → `habits` and
-   recovery → original use `ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED`:
+   recovery → original use named constraints `habit_logs_habit_fkey` /
+   `habit_logs_recovery_fkey` (`ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED`):
    individual habit/original deletes still fail while dependents exist; whole
    `auth.users` CASCADE purge can complete in one transaction without casually
    CASCADE-wiping history on single-habit delete.

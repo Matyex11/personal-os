@@ -226,8 +226,14 @@ begin
     end if;
   end if;
 
-  if kind = 'weekdays' then
-    if not (c ? 'weekdays') or jsonb_typeof(c->'weekdays') is distinct from 'array' then
+  -- weekdays: required for kind=weekdays; optional for daily; if present must be
+  -- array of 1–7 integers each in 1..7 (parity with habitCadenceSchema / Zod).
+  if kind = 'weekdays' and not (c ? 'weekdays') then
+    return false;
+  end if;
+
+  if c ? 'weekdays' then
+    if jsonb_typeof(c->'weekdays') is distinct from 'array' then
       return false;
     end if;
     weekday_count := jsonb_array_length(c->'weekdays');
@@ -251,7 +257,6 @@ begin
     end loop;
   end if;
 
-  -- kind = daily: optional weekdays ignored (matches habitCadenceSchema)
   return true;
 end;
 $$;
@@ -324,15 +329,17 @@ create table public.habit_logs (
     (status = 'recovery') = (recovers_log_id is not null)
   ),
   constraint habit_logs_value_nonneg check (value is null or value >= 0),
-  -- NO ACTION DEFERRABLE: individual habit/original-log deletes still fail while
-  -- dependents exist (checked at statement/transaction end). Whole-account purge
-  -- (auth.users CASCADE to habits + habit_logs in one transaction) succeeds
-  -- without casually CASCADE-wiping history on single-habit delete.
-  foreign key (user_id, habit_id)
+  -- Named deferred NO ACTION FKs: individual habit/original deletes still fail
+  -- while dependents exist (force-check via SET CONSTRAINTS … IMMEDIATE in tests).
+  -- Whole-account purge (auth.users CASCADE) succeeds in one transaction without
+  -- casually CASCADE-wiping history on single-habit delete.
+  constraint habit_logs_habit_fkey
+    foreign key (user_id, habit_id)
     references public.habits (user_id, id)
     on delete no action
     deferrable initially deferred,
-  foreign key (user_id, habit_id, recovers_log_id)
+  constraint habit_logs_recovery_fkey
+    foreign key (user_id, habit_id, recovers_log_id)
     references public.habit_logs (user_id, habit_id, id)
     on delete no action
     deferrable initially deferred

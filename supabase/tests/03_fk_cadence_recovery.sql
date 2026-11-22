@@ -77,6 +77,29 @@ begin
   if public.is_valid_habit_cadence('{"kind":"weekdays","weekdays":["1"],"startOn":"2026-11-01"}'::jsonb) is distinct from false then
     raise exception 'string weekdays must be FALSE';
   end if;
+  if public.is_valid_habit_cadence('{"kind":"weekdays","startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'weekdays kind missing weekdays must be FALSE';
+  end if;
+
+  -- daily + malformed weekdays (Zod parity: if present, must be valid array)
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":[],"startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily empty weekdays must be FALSE';
+  end if;
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":"1","startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily string weekdays must be FALSE';
+  end if;
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":null,"startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily null weekdays must be FALSE';
+  end if;
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":[1.5],"startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily decimal weekday must be FALSE';
+  end if;
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":["1"],"startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily string weekday element must be FALSE';
+  end if;
+  if public.is_valid_habit_cadence('{"kind":"daily","weekdays":[0],"startOn":"2026-11-01"}'::jsonb) is distinct from false then
+    raise exception 'daily out-of-range weekday must be FALSE';
+  end if;
 
   v := public.is_valid_habit_cadence('{"kind":"daily","startOn":"2026-11-01"}'::jsonb);
   if v is distinct from true then
@@ -86,10 +109,10 @@ begin
   if v is distinct from true then
     raise exception 'valid weekdays must be TRUE';
   end if;
-  -- daily may include optional weekdays (ignored); still valid
+  -- daily may include optional valid weekdays
   v := public.is_valid_habit_cadence('{"kind":"daily","weekdays":[1],"startOn":"2026-11-01"}'::jsonb);
   if v is distinct from true then
-    raise exception 'daily with optional weekdays must be TRUE';
+    raise exception 'daily with optional valid weekdays must be TRUE';
   end if;
 
   insert into public.chapters (id, user_id, title, started_on, status, is_current)
@@ -196,9 +219,10 @@ begin
       end if;
   end;
 
-  -- Individual habit delete must not erase history (deferred NO ACTION → FK violation)
+  -- Individual habit delete: deferred NO ACTION — force IMMEDIATE check
   begin
     delete from public.habits where id = h;
+    set constraints habit_logs_habit_fkey immediate;
     raise exception 'UNEXPECTED_SUCCESS: habit delete with logs';
   exception
     when foreign_key_violation then null;
@@ -206,10 +230,18 @@ begin
       if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
       raise;
   end;
+  -- Subtransaction rolled back → rows must still exist for later steps
+  if not exists (select 1 from public.habits where id = h) then
+    raise exception 'habit missing after failed deferred delete';
+  end if;
+  if not exists (select 1 from public.habit_logs where id = missed_id) then
+    raise exception 'missed log missing after failed habit delete';
+  end if;
 
   -- Individual original log delete must not break recovery links
   begin
     delete from public.habit_logs where id = missed_id;
+    set constraints habit_logs_recovery_fkey immediate;
     raise exception 'UNEXPECTED_SUCCESS: delete original with recovery';
   exception
     when foreign_key_violation then null;
@@ -217,6 +249,15 @@ begin
       if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
       raise;
   end;
+  if not exists (select 1 from public.habit_logs where id = missed_id) then
+    raise exception 'original log missing after failed deferred delete';
+  end if;
+  if not exists (
+    select 1 from public.habit_logs
+    where recovers_log_id = missed_id and status = 'recovery'
+  ) then
+    raise exception 'recovery log missing after failed original delete';
+  end if;
 
   -- Column-specific SET NULL: delete chapter clears chapter_id only
   delete from public.chapters where id = ch;

@@ -1,9 +1,10 @@
 # Phase 1B — L3 stop package (awaiting apply approval)
 
-> **Status after post-`b707034` L3 corrections:** migration + SQL tests + docs
-> updated. **Migration still NOT applied.** Docker not started. Hosted Auth
+> **Status after post-`fa93208` L3 test corrections:** migration + SQL tests +
+> docs updated. **Migration still NOT applied.** Docker not started. Hosted Auth
 > unchanged. Target remains **personal-os-dev** / `qyysmgwdvhftbgwhpbjt` /
 > `eu-central-1` only. Do **not** touch `personal-os` (`bdmhlzbigdedqsqirwxn`).
+> SQL tests remain **authored, not executed**.
 
 ## 1. Exact migration target
 
@@ -20,9 +21,16 @@
 - `REVOKE` from PUBLIC / anon / service_role; **`GRANT EXECUTE` to authenticated**
   (required for CHECK on authenticated INSERT/UPDATE)
 
-**B. Fail-closed cadence**
+**B. Fail-closed cadence (Zod parity)**
 - Always returns TRUE/FALSE (never NULL); CHECK uses `… IS TRUE`
-- Aligns with `habitCadenceSchema` / `cadence.ts`
+- `kind=weekdays` → `weekdays` required; `kind=daily` → optional
+- **If `weekdays` is present (any kind):** must be array of 1–7 integers 1..7
+- Aligns with `habitCadenceSchema` / `cadence.ts` (Zod not loosened)
+
+**Deferred history FKs (named)**
+- `habit_logs_habit_fkey`, `habit_logs_recovery_fkey`
+- Tests force `SET CONSTRAINTS <name> IMMEDIATE` after individual DELETE attempts
+- Account purge: `SET CONSTRAINTS ALL IMMEDIATE` after `DELETE auth.users`
 
 **C. SQL tests repaired** — executable assertions; see §7
 
@@ -54,9 +62,11 @@ Reject → FALSE / Zod fail:
 - missing / invalid `kind` (only `daily` \| `weekdays`)
 - missing / non-string / non-calendar `startOn` (`YYYY-MM-DD`)
 - `endOn` present and not JSON null: must be valid calendar date ≥ `startOn`
-- `weekdays` kind: array of 1–7 integer entries each in 1..7 (no decimals/strings/empty)
+- if `weekdays` present (any kind): array of 1–7 integer entries each in 1..7
+  (no decimals/strings/null/objects/empty/out-of-range)
+- `weekdays` kind without `weekdays` key → FALSE
 Accept → TRUE:
-- valid daily (optional `weekdays` ignored)
+- valid daily (no weekdays, or optional **valid** weekdays array)
 - valid weekdays with ISO weekdays + optional `endOn`
 
 ## 6. FK deletion behaviour
@@ -66,8 +76,8 @@ Accept → TRUE:
 | habits/projects | chapters | SET NULL (**only** `chapter_id`) PG17 |
 | milestones | projects | SET NULL (**only** `project_id`) |
 | tasks | projects / milestones | SET NULL (**only** that column) |
-| habit_logs | habits | **NO ACTION DEFERRABLE** (history-preserving) |
-| recovery log | original log | **NO ACTION DEFERRABLE** |
+| habit_logs | habits | **`habit_logs_habit_fkey`** NO ACTION DEFERRABLE |
+| recovery log | original log | **`habit_logs_recovery_fkey`** NO ACTION DEFERRABLE |
 | chapter module_activations | chapters | CASCADE |
 | user-owned rows | `auth.users` | CASCADE (account purge) |
 

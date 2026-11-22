@@ -1,7 +1,7 @@
 -- Whole-account purge behaviour (rollback-only).
 -- Semantics: individual habit/original-log deletes must NOT wipe history links;
 -- DELETE auth.users must remove all user-owned rows with no orphans.
--- Uses deferred NO ACTION on habit_logs→habits and recovery→original FKs.
+-- After purge, SET CONSTRAINTS ALL IMMEDIATE proves deferred NO ACTION validates.
 -- AUTHOR ONLY this pass (Docker off / migration not applied).
 
 begin;
@@ -44,6 +44,9 @@ begin
 
   -- Whole-account purge
   delete from auth.users where id = u1;
+
+  -- Force deferred FK validation now (must succeed with no orphans)
+  set constraints all immediate;
 
   select count(*) into n from public.habits where user_id = u1;
   if n <> 0 then raise exception 'orphan habits after account delete: %', n; end if;
