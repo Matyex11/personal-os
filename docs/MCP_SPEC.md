@@ -2,72 +2,104 @@
 
 ## Purpose
 
-A **dedicated Personal OS MCP server** exposes audited tools so Cursor (and
-future agents) can help operate the user’s OS. It is **not** the XNINE ops MCP
-and must never share credentials or tool namespaces with XNINE execution infra.
+A **dedicated Personal OS MCP server** (in-repo package `mcp/`, D016) exposes
+audited tools so Cursor and future agents can help operate the user’s OS. It is
+**not** the XNINE ops MCP and must never share credentials or tool namespaces
+with XNINE execution infra.
 
-## Deployment principles
+Host vendor is **deferred** (D017); the package is designed as a separate
+deployable process from the Next.js app.
 
-- Separate process/host from the Next.js app on Vercel.
-- Uses Personal OS Supabase credentials only (server-side).
-- Every mutating or sensitive read tool writes an `audit_logs` row.
-- Important ops require an explicit confirmation token / two-step tool pattern.
-- Sensitive modules default to **deny** for AI tool access.
+## Security principles (mandatory)
+
+1. **Server-side authorization on every tool call.** The model is untrusted.
+2. **User-scoped operations only.** Effective `user_id` comes from the MCP
+   session / verified identity binding — not from arbitrary client-supplied
+   impersonation fields.
+3. **No unrestricted database query tools.** No ad-hoc “run query” / “list all
+   tables” / dump tools.
+4. **No raw SQL tools.** Ever.
+5. **Never expose service-role credentials** (or DB URLs with passwords) to
+   agents, tool responses, prompts, or logs. Secrets stay in the MCP **host**
+   environment; tools return data, not keys.
+6. Sensitive modules default to **deny**; sensitive reads use propose/confirm +
+   audit + eligibility checks (`ai_accessible`, etc.).
+7. Important mutations use confirmation tokens; all admin/sensitive calls audit.
+8. Supabase MCP (if present in Cursor) is **not** a substitute for this server
+   and does **not** authorize production/dev schema changes.
+
+## Authorization flow (per tool)
+
+```
+agent tool call
+  → authenticate MCP session
+  → resolve bound user_id
+  → check tool tier vs session grants
+  → check module sensitivity / ai_accessible
+  → (admin) require valid confirmation_id when needed
+  → execute via domain services (RLS-aware or carefully scoped server path)
+  → write audit_logs (no secrets in metadata)
+  → return safe payload
+```
+
+Permission checks fail closed. Ambiguous identity → deny.
 
 ## Permission tiers
 
-| Tier | Capabilities | Default tools |
-|------|--------------|---------------|
-| **read** | Non-sensitive SELECT-shaped tools | Chapters summary, active modules, habit streak summaries, task/project lists, physical metric summaries, review outlines |
-| **write** | Create/update non-destructive records | Log habit, add task, update project status, create check-in draft |
-| **admin** | Destructive, bulk, export, policy, sensitive unlock | Delete chapter data, bulk finance import, export all, toggle `ai_accessible`, apply schema (human-gated outside MCP ideally) |
+| Tier | Capabilities | Autonomy mapping |
+|------|--------------|------------------|
+| **read** | Non-sensitive, explicit read tools | ≈ L1 within MCP policy |
+| **write** | Non-destructive creates/updates on allowed modules | ≈ L2 (prefer human-visible) |
+| **admin** | Destructive, bulk, export, sensitive unlock | ≈ L3 + confirmation |
 
-Autonomy mapping: read ≈ L1 inside MCP session policy; write ≈ L2; admin ≈ L3
-with human confirmation.
+Schema migrate / `db push` is **not** an MCP admin convenience — it remains a
+human L3 ops action outside this tool surface (or a future explicitly approved
+tool, default off).
 
 ## Sensitive module restrictions
 
 | Module | MCP default | Unlock |
 |--------|-------------|--------|
-| Behavioural records | **Denied** | User sets `ai_accessible` + confirmation tool |
-| Finance transactions / PnL details | **Denied** (aggregates optional later) | Explicit unlock + audit |
-| Check-in free text | **Denied** or redacted | Opt-in |
-| XNINE tracking notes | Read allowed if non-secret; **no** execution tools | N/A — execution forbidden |
-| Audit logs | Read own summary | No delete via MCP |
+| Behavioural records | **Denied** | `ai_accessible` + propose/confirm + audit |
+| Finance transactions / business ledgers / PnL | **Denied** | Explicit unlock + audit; no “profit” tool that mixes kinds |
+| Check-in free text | **Denied** / redacted | Opt-in |
+| Habit recovery links | Allowed as metadata | Must not rewrite original miss |
+| XNINE tracking notes | Read if non-secret | **No** execution tools |
+| Audit logs | Read own summary | No delete |
 
-## Confirmation pattern (important ops)
+## Confirmation pattern
 
-1. Agent calls `propose_*` tool → server returns `confirmation_id` + human-readable diff.
-2. Human approves in UI or chat.
-3. Agent calls `confirm_*` with `confirmation_id` (short TTL, single use).
+1. `propose_*` → `confirmation_id` + human-readable diff (TTL, single-use).
+2. Human approves.
+3. `confirm_*` with `confirmation_id`.
 4. Server executes, audits, returns result.
 
-Applies to: deletes, bulk edits, exports, sensitive reads, module AI unlocks.
+Required for: deletes, bulk edits, exports, sensitive reads, AI accessibility
+toggles.
 
-## Example tools (starting point — not implemented yet)
+## Example tools (starting point — not implemented)
 
 ### Read
 
 | Tool | Tier | Notes |
 |------|------|-------|
-| `get_current_chapter` | read | Where am I |
-| `list_active_modules` | read | |
-| `list_habits` | read | Metadata only |
-| `summarize_habit_adherence` | read | Uses statuses correctly; no silent rewrite |
-| `list_projects` | read | Includes milestone counts, not nested secrets |
+| `get_current_chapter` | read | |
+| `list_active_modules` | read | Resolved global vs chapter |
+| `list_habits` | read | Metadata |
+| `summarize_habit_adherence` | read | Honors status table; miss preserved; recovery separate |
+| `list_projects` | read | |
 | `list_open_tasks` | read | |
-| `get_weekly_review_stub` | read | Structure without private behavioural bodies |
+| `get_weekly_review_stub` | read | No behavioural bodies |
 
 ### Write
 
 | Tool | Tier | Notes |
 |------|------|-------|
-| `log_habit` | write | Status enum enforced |
-| `create_task` | write | |
-| `update_task_status` | write | |
-| `create_project` | write | |
-| `create_milestone` | write | Separate from tasks |
-| `upsert_check_in` | write | May escalate if body present |
+| `log_habit` | write | Enum enforced; cannot “complete” by editing a miss |
+| `create_habit_recovery` | write | Creates recovery row linked to original log |
+| `create_task` / `update_task_status` | write | |
+| `create_project` / `create_milestone` | write | Separate concepts |
+| `upsert_check_in` | write | May escalate if `body` present |
 | `upsert_xnine_tracking_item` | write | Tracking only |
 
 ### Admin / gated
@@ -75,27 +107,28 @@ Applies to: deletes, bulk edits, exports, sensitive reads, module AI unlocks.
 | Tool | Tier | Notes |
 |------|------|-------|
 | `propose_delete_entity` / `confirm_delete_entity` | admin | |
-| `propose_export_user_data` / `confirm_export_user_data` | admin | Portability |
-| `propose_sensitive_read` / `confirm_sensitive_read` | admin | Behavioural/finance |
-| `propose_set_ai_accessible` / `confirm_set_ai_accessible` | admin | Per-record or per-module |
+| `propose_export_user_data` / `confirm_export_user_data` | admin | JSON **and** CSV (D022) |
+| `propose_sensitive_read` / `confirm_sensitive_read` | admin | AuthZ + audit |
+| `propose_set_ai_accessible` / `confirm_set_ai_accessible` | admin | |
 
 ## Explicit non-tools
 
-- Anything that starts jobs on XNINE infra
-- Raw SQL execution
-- Service-role credential disclosure
-- Silent backfill of habit history as `completed`
+- Raw SQL / unrestricted query
+- Service-role or secret disclosure
+- XNINE job execution
+- Silent rewrite of habit history (`missed` → `completed`)
+- Generic “compute profit” over all transactions
+- Schema apply / production mutate
 
 ## Audit requirements
 
-Every tool invocation stores at minimum: tool name, tier, actor, args hash /
-safe metadata, success/failure, `confirmation_id` if any. Never store API keys
-or full sensitive bodies in audit metadata.
+Every invocation: tool name, tier, bound user id, actor, safe args metadata,
+success/failure, `confirmation_id` if any. Never store API keys, service role,
+or full sensitive bodies.
 
-## Relation to Cursor
+## Relation to architecture
 
-- Personal OS MCP is configured in the user’s MCP settings for this project.
-- Presence of Supabase MCP (if any) does **not** grant unrestricted production
-  access; agents still follow L2/L3 and this spec.
-- Foundation phase: document only — **do not implement or deploy** the MCP
-  server yet (see Roadmap phase after app vertical slice).
+- MCP is a façade over domain services (`docs/ARCHITECTURE.md`), not a parallel
+  data layer.
+- Implementation phase: **Phase 4** (`docs/ROADMAP.md`). Foundation/0.1:
+  documentation only.

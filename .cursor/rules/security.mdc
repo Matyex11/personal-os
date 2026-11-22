@@ -7,8 +7,9 @@ alwaysApply: true
 
 - **Never** commit credentials, API keys, tokens, or connection strings. Use `.env.example` placeholders only.
 - **Never** reuse XNINE DB credentials or execution infrastructure.
-- Autonomy: L1 docs/code in scope; L2 for supervised risky changes; **L3** for hosted migrations, deploy, Docker start, destructive ops, sensitive AI unlocks — see `AGENTS.md` and `docs/SECURITY.md`.
-- Supabase MCP (if configured) is not unrestricted production access; still obey L2/L3.
+- Autonomy: L1 docs/code in authorized phase scope; L2 for supervised risky diffs; **L3** to apply migrations (DEV or PROD), deploy, Docker start, destructive ops, sensitive AI unlocks — see `AGENTS.md` and `docs/SECURITY.md`.
+- Never expose service-role credentials to agents or tool results.
+- Supabase MCP (if configured) is not unrestricted DEV/PROD access; still obey L2/L3 and prefer Personal OS MCP tools when built.
 - Behavioural and detailed financial data are **not** default AI-accessible.
 - Destructive operations and exports require explicit human confirmation and audit logging.
-- RLS is mandatory on user-owned tables; client uses user-scoped access only.
+- RLS is mandatory on user-owned tables; prefer composite `(user_id, parent_id)` FKs; client uses user-scoped access only.

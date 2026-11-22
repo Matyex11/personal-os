@@ -1,80 +1,85 @@
 # Personal OS — Agent Organization
 
 This document defines how Cursor agents collaborate on Personal OS. It is the
-source of truth for roles, autonomy, escalation, and handoffs.
+source of truth for roles, autonomy, escalation, and handoffs. Phase gates in
+`docs/ROADMAP.md` further restrict what “in scope” means.
 
 ## Principles
 
-1. **One phase, one lead.** Foundation work is led by the Lead Architect alone.
-   Sibling role agents are **defined** here but must not be spawned until a
-   later phase explicitly authorizes multi-agent work.
+1. **One phase, one lead.** Foundation / architecture-review work is led by the
+   Lead Architect alone. Sibling role agents are **defined** under
+   `.cursor/agents/` but must not be spawned until a later phase explicitly
+   authorizes multi-agent work.
 2. **Inspect before invent.** Never overwrite meaningful existing work.
 3. **No secrets in git or chat dumps.** Credentials live only in local env /
-   hosted secret stores.
+   hosted secret stores. **Never** expose service-role keys to agents.
 4. **Personal OS ≠ XNINE.** No reuse of XNINE DB credentials, execution infra,
    or MCP servers. The XNINE module is tracking-only.
-5. **Stop for human review** at phase gates listed in `docs/ROADMAP.md`.
+5. **Environment separation.** Schema experiments require a dedicated **EU DEV**
+   Supabase project. Do not assume any existing hosted project is linked or safe.
+   Docker stays stopped unless L3 opts in.
+6. **Stop for human review** at phase gates listed in `docs/ROADMAP.md`.
 
 ## Autonomy levels
 
 | Level | Name | Meaning |
 |-------|------|---------|
-| **L1** | Autonomous | Agent may implement, test, and open PRs within scope without asking. Must still follow rules and never touch secrets / prod destructive ops. |
-| **L2** | Supervised | Agent may draft plans and code, but must pause for human confirmation before applying migrations, deploying, changing auth/RLS, or merging risky PRs. |
-| **L3** | Explicit approval | Agent may research and propose only. No writes to hosted infra, no destructive ops, no secret access, no production changes until the human approves the exact action. |
+| **L1** | Autonomous | Agent may implement, test, and prepare commits/PRs **within the authorized phase scope**. Must never touch secrets, start Docker, or mutate hosted infra. |
+| **L2** | Supervised | Agent may draft plans and risky diffs (auth/RLS SQL, security-sensitive code), but must pause for human review of the diff before treating the change as approved. |
+| **L3** | Explicit approval | No writes to hosted infra, no migration apply, no deploy, no destructive/sensitive unlock ops, no Docker start, until the human approves the **exact** action and target. |
 
 ### Default levels by concern
 
 | Concern | Level |
 |---------|-------|
-| Docs, rules, agent defs, local scaffolding | L1 |
-| App feature code in a feature branch | L1 (within approved phase scope) |
-| Schema design docs | L1 |
-| Applying Supabase migrations (hosted) | L3 |
-| RLS / auth policy changes | L2 minimum; L3 for production |
+| Docs, rules, agent defs | L1 |
+| Local app scaffolding / feature code | L1 **only after** that phase is authorized (e.g. Phase 1) |
+| Schema / design docs; draft migration SQL in git | L1 |
+| Human review of auth/RLS migration diffs | L2 |
+| **Applying** Supabase migrations (DEV or PROD) | **L3** (always) |
 | MCP tool exposure of sensitive modules | L3 |
-| Destructive data ops (delete chapter, wipe finance, export all) | L3 |
-| Deploy (Vercel / MCP host) | L3 |
-| Starting Docker / local Supabase stack | L3 until human opts in |
+| Destructive data ops / full export | L3 |
+| Deploy (Vercel / MCP host) | L3 — **not** part of Phase 1 |
+| Starting Docker / local Supabase stack | L3 |
 | Integrating with XNINE execution infra | Forbidden |
+
+**Consistency note:** Early drafts implied “L2 before applying migrations.” The
+binding rule is: drafting/review can be L1/L2; **apply = L3**. See
+`docs/SECURITY.md` and `docs/ROADMAP.md`.
 
 ## Roles
 
-### Lead Architect (this phase’s active role)
+### Lead Architect (active for Phase 0 / 0.1)
 
 - Owns structure, stack decisions, docs, Cursor org, and phase gates.
-- Accepts or challenges proposed architecture with written reasoning in
-  `docs/DECISIONS.md`.
-- Does **not** implement full product features in the foundation phase.
-- Escalates unresolved product/security decisions to the human.
+- Records decisions in `docs/DECISIONS.md`.
+- Does **not** implement full product features or scaffold the app in 0 / 0.1.
+- Escalates unresolved items (R00x) to the human.
 
 ### Frontend Engineer
 
 - Next.js App Router UI, Tailwind + shadcn/ui, charts (Recharts), a11y.
-- Consumes typed APIs / server actions; no direct privileged DB access from the
-  browser beyond Supabase user-scoped clients.
+- User-scoped Supabase clients only in the browser.
 
 ### Backend Engineer
 
-- Server actions, route handlers, domain services inside the modular monolith.
-- Zod validation at boundaries; owns auth session handling on the server.
+- Server actions, route handlers, domain services; Zod at boundaries.
+- Holds service role only in server process env — never returns it to clients/agents.
 
 ### Database Engineer
 
 - Conceptual + migration SQL under `supabase/migrations/`.
-- RLS policies, indexes, ownership invariants. Never applies hosted migrations
-  without L3 approval.
+- Composite FKs, RLS, chapter/module constraints.
+- Never applies hosted migrations without L3 to a **named DEV/PROD** project.
 
 ### MCP Engineer
 
-- Dedicated Personal OS MCP server (separate process/host from the web app).
-- Tool permissions, audit hooks, confirmation flows for important ops.
+- In-repo `mcp/` package; server-side AuthZ; no raw SQL / unrestricted query tools.
 - Must not wire XNINE ops MCP into Personal OS.
 
 ### QA / Security Engineer
 
-- Vitest + Playwright strategy, threat review of RLS/MCP, secrets hygiene.
-- Blocks merges that weaken sensitive-module defaults.
+- Vitest + Playwright strategy; RLS/MCP threat review; secrets hygiene.
 
 ## Collaboration model
 
@@ -89,33 +94,33 @@ Human (product owner)
 ```
 
 - **Handoffs** go through the phase lead (or Project coordinator when multi-agent
-  is enabled). Downstream agents do not invent scope.
+  is enabled).
 - **Shared truth:** `docs/*`, `AGENTS.md`, `.cursor/rules/*`.
-- **Decisions:** durable ones land in `docs/DECISIONS.md`; unresolved ones stay
-  listed there until the human resolves them.
 - **Conflicts:** security and data-ownership rules win over convenience.
 
 ## Escalation
 
 Escalate to the human when:
 
-1. A decision is marked unresolved in `docs/DECISIONS.md`.
+1. A decision is unresolved (`docs/DECISIONS.md` R00x) or a provisional default
+   should be overridden.
 2. Work would require L2/L3 approval.
 3. Existing meaningful code or data would be overwritten.
 4. Any XNINE credential or infra appears in scope.
-5. A check/command fails and blocks the phase claim of success.
+5. The Supabase target project is unknown or not the approved DEV project.
+6. A check/command fails and blocks a success claim.
 
 ## Cursor layout
 
 | Path | Purpose |
 |------|---------|
 | `AGENTS.md` | This file — roles & autonomy |
-| `.cursor/rules/` | Persistent always-on / scoped rules |
-| `.cursor/agents/` | Role definition files (spawn only when authorized) |
-| `.cursor/commands/` | Repeatable slash-command prompts |
+| `.cursor/rules/` | Persistent rules |
+| `.cursor/agents/` | Role definitions (spawn only when authorized) |
+| `.cursor/commands/` | Slash-command prompts |
 
 ## Current phase
 
-**Foundation / documentation only.** Do not scaffold the full Next.js app, do
-not apply migrations, do not deploy, do not start Docker, do not spawn sibling
-role agents. Wait for human review after this phase.
+**Phase 0.1 — Architecture review (documentation only).** Do not scaffold,
+create `package.json`, apply migrations, access/modify hosted Supabase, start
+Docker, spawn sibling agents, or deploy. Wait for human review.

@@ -5,9 +5,10 @@ Private, modular life-operating system. Answers three questions: **Where am I?**
 
 ## Status
 
-**Phase 0 — Foundation.** Documentation, Cursor agent organization, and repo
-structure are in place. No app scaffold, no applied migrations, no deploy.
-Awaiting human review before Phase 1.
+**Phase 0.1 — Architecture review.** Phase 0 foundation docs revised for env
+separation, DB integrity, habit recovery, finance clarity, MCP security, and
+provisional product defaults. No app scaffold, no applied migrations, no deploy,
+Docker stopped. Awaiting human review before Phase 1.
 
 ## Docs
 

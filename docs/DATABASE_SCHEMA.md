@@ -1,18 +1,33 @@
 # Personal OS — Database Schema (Conceptual)
 
-> **Status:** Design only. **No migrations applied.** No hosted tables created or
-> modified in the foundation phase. SQL under `supabase/migrations/` may be
-> added in a later approved phase.
+> **Status:** Design only. **No migrations applied.** Do not create or modify
+> hosted tables until a **dedicated EU development** Supabase project exists and
+> the human L3-approves. Docker stays stopped. SQL under `supabase/migrations/`
+> may be authored later — never against an unknown/production project by default.
 
 ## Design goals
 
 1. Every user-owned row includes `user_id` (FK → `auth.users`) and is protected by RLS.
-2. Chapters scope “what is active now” without deleting history.
-3. Projects, milestones, and tasks are **separate concepts** with optional links.
-4. Habit logs use an explicit status enum including Recovery.
-5. Finance semantics stay strict (PnL ≠ cash movement; revenue ≠ profit).
-6. Behavioural + detailed financial data are **sensitive** — not default AI/MCP readable.
-7. Audit log is append-oriented for important mutations.
+2. FKs that reference user-owned parents should be **composite** `(user_id, parent_id)` where practical, to prevent cross-user references.
+3. Chapters scope “what is active now” without deleting history; lifecycle is explicit.
+4. Projects, milestones, and tasks are **separate concepts** with optional same-user links.
+5. Habit logs: original `missed` rows are **immutable history**; recovery is a **linked event**, never a rewrite.
+6. Finance semantics stay strict: cash ≠ income/expense semantics ≠ business P&L ≠ trading PnL.
+7. Behavioural + detailed financial data are **sensitive** — not default AI/MCP readable.
+8. Audit log is append-oriented for important mutations.
+
+## Ownership & composite FK pattern
+
+- Every domain table carries `user_id`.
+- When child → parent (e.g. `habit_logs` → `habits`, `tasks` → `projects`):
+  - Prefer UNIQUE `(user_id, id)` on the parent (in addition to PK on `id`), and
+  - FK `(user_id, parent_id)` → parent `(user_id, id)`.
+- Same pattern for: `habit_logs.habit_id`, `milestones.project_id`,
+  `tasks.project_id`, `tasks.milestone_id`, `habit_logs.is_recovery_for` →
+  `habit_logs`, `finance_transactions.account_id`, chapter-scoped children →
+  `chapters`, `module_activations.chapter_id`.
+- Application code must still set `user_id` from the authenticated session — never
+  from client-supplied “act as” fields.
 
 ## Core entities
 
@@ -24,9 +39,12 @@ Extends auth user with app preferences.
 |--------|-------|
 | `id` PK | Same as `auth.users.id` |
 | `display_name` | |
-| `timezone` | IANA TZ |
-| `base_currency` | Default reporting currency (e.g. `HUF`, `EUR`) |
+| `timezone` | Default **`Europe/Bucharest`** (D019) |
+| `base_currency` | Default **`RON`**; multi-currency still supported on accounts (D020) |
 | `created_at` / `updated_at` | |
+
+v0 is **single-user product** with **user-scoped** rows (D013). Schema stays
+multi-user-safe via `user_id` + RLS.
 
 ### `chapters`
 
@@ -37,31 +55,66 @@ Named life periods / history frames.
 | `id` PK | UUID |
 | `user_id` | Owner |
 | `title`, `summary` | |
-| `started_on`, `ended_on` | `ended_on` null = current/open |
-| `is_current` | At most one current chapter per user (enforced by partial unique index) |
+| `started_on`, `ended_on` | `ended_on` null only while status is open/current |
+| `status` | `planned` \| `active` \| `closed` |
+| `is_current` | Denormalized flag; must agree with lifecycle rules below |
 
-**Relationships:** Parent of module activations, optional FK target from habits/projects/check-ins/reviews.
+#### Chapter lifecycle constraints
+
+1. At most **one** chapter with `is_current = true` per `user_id` (partial unique index).
+2. The current chapter must have `status = 'active'` and `ended_on IS NULL`.
+3. Closing a chapter: set `status = 'closed'`, set `ended_on`, clear `is_current`;
+   optionally activate another chapter in the same transaction.
+4. `started_on <= ended_on` when `ended_on` is present.
+5. Chapters are not hard-deleted in normal flows (prefer close); destructive
+   delete is L3 + confirmation and must cascade carefully.
+6. Historical rows that reference a closed chapter remain valid (history preserved).
+
+**Relationships:** Optional/required parent for chapter-scoped activations and
+domain rows; see module activation rules below.
 
 ### `module_activations`
 
-Which product modules are live for a user (optionally within a chapter).
+Which product modules are live for a user — **global defaults** and/or
+**chapter overrides**.
 
 | Column | Notes |
 |--------|-------|
 | `id` PK | |
 | `user_id` | |
-| `chapter_id` | Nullable = global preference; prefer chapter-scoped |
-| `module_key` | Enum/text: `habits`, `tasks`, `projects`, `milestones`, `checkins`, `finances`, `physical`, `behavioural`, `reviews`, `xnine_tracking` |
+| `scope` | `global` \| `chapter` (explicit; do not overload nulls) |
+| `chapter_id` | Required when `scope = 'chapter'`; **NULL** when `scope = 'global'` |
+| `module_key` | `habits`, `tasks`, `projects`, `milestones`, `checkins`, `finances`, `physical`, `behavioural`, `reviews`, `xnine_tracking` |
 | `is_active` | |
 | `settings` | JSONB module-specific flags |
 
-**Constraint:** Unique `(user_id, chapter_id, module_key)`.
+#### Global vs chapter-scoped activation
+
+- **Global** rows (`scope = 'global'`, `chapter_id IS NULL`): default on/off for
+  the user when no chapter override exists.
+- **Chapter** rows (`scope = 'chapter'`, `chapter_id` set): override for that
+  chapter only. Resolution: chapter override if present, else global, else
+  inactive.
+- Prefer activating modules for the **current chapter** in product UX; globals
+  are fallbacks / templates.
+
+#### Uniqueness (nullable-safe)
+
+PostgreSQL UNIQUE treats NULLs as distinct, so
+`UNIQUE (user_id, chapter_id, module_key)` is **incorrect** for global rows.
+
+Use:
+
+- `UNIQUE (user_id, module_key) WHERE scope = 'global'`
+- `UNIQUE (user_id, chapter_id, module_key) WHERE scope = 'chapter'`
+- CHECK: `(scope = 'global' AND chapter_id IS NULL) OR (scope = 'chapter' AND chapter_id IS NOT NULL)`
+- Composite FK when chapter-scoped: `(user_id, chapter_id)` → `chapters (user_id, id)`
 
 ### `habits`
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `chapter_id?` | |
+| `id`, `user_id`, `chapter_id?` | Composite ownership to chapter when set |
 | `name`, `description` | |
 | `cadence` | e.g. daily / weekly / custom RRULE later |
 | `min_value` | Minimum acceptable quantity (numeric or boolean-as-0/1) |
@@ -73,21 +126,39 @@ Which product modules are live for a user (optionally within a chapter).
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `habit_id` | |
+| `id`, `user_id`, `habit_id` | Composite FK to habit |
 | `logged_on` | Date in user TZ intent |
-| `status` | Enum: `completed`, `partial`, `missed`, `not_scheduled`, `recovery` |
+| `status` | `completed` \| `partial` \| `missed` \| `not_scheduled` \| `recovery` |
 | `value` | Actual amount; null when not applicable |
 | `notes` | |
-| `is_recovery_for` | Optional FK → prior `habit_logs.id` when status = `recovery` |
+| `recovers_log_id` | FK → original log when `status = 'recovery'`; **required** for recovery |
+| `created_at` | |
 
-**Rules:**
+#### Recovery model (immutable history)
 
-- `completed`: meets/exceeds **target** (or boolean done).
-- `partial`: meets **min** but below target (or explicitly partial).
-- `missed`: scheduled and not done.
-- `not_scheduled`: off-cadence day; does not punish streaks.
-- `recovery`: intentional make-up; does not silently rewrite history.
-- Unique `(habit_id, logged_on)` for non-recovery rows; recoveries may reference the missed log.
+1. A scheduled miss is stored as `status = 'missed'` and **remains forever**
+   (no UPDATE of that row’s status to completed/partial/recovery).
+2. Recovery is a **separate** `habit_logs` row with `status = 'recovery'` and
+   `recovers_log_id` pointing at the original missed (or partial) log.
+3. CHECK: `status = 'recovery' <=> recovers_log_id IS NOT NULL`.
+4. Composite FK: recovery and original share the same `user_id` (and habit).
+5. Do not delete the original missed log when recovering.
+6. Unique: one primary log per `(habit_id, logged_on)` where
+   `status <> 'recovery'`; recoveries are additional rows (unique on
+   `(habit_id, recovers_log_id)` for recovery rows).
+
+#### Status → reporting effects
+
+| Status | Counts as scheduled day? | Adherence numerator | Streak impact | Notes |
+|--------|--------------------------|---------------------|---------------|-------|
+| `completed` | Yes | Full credit (1) | Continues / builds | Met **target** (or boolean done) |
+| `partial` | Yes | Partial credit (configurable; default 0.5) or “min met” flag | Does **not** equal full streak day unless product setting says so | Met **min**, below target |
+| `missed` | Yes | 0 | Breaks strict streak | **Permanent** historical fact |
+| `not_scheduled` | No | Excluded from denominator | Neutral | Off-cadence |
+| `recovery` | No (separate event) | Optional “recovery credit” series — **never** replaces the miss in history charts | Does not rewrite past streak; may show on a recovery timeline | Linked via `recovers_log_id` |
+
+Historical adherence charts must plot the original statuses. Recovery appears as
+a linked annotation/series, not as an overwrite of the miss.
 
 ### `projects`
 
@@ -106,7 +177,7 @@ Which product modules are live for a user (optionally within a chapter).
 | Column | Notes |
 |--------|-------|
 | `id`, `user_id` | |
-| `project_id` | Optional FK — milestone may stand alone |
+| `project_id` | Optional; composite FK same user |
 | `title`, `description` | |
 | `status` | `pending`, `hit`, `missed`, `cancelled` |
 | `target_on`, `achieved_on` | |
@@ -116,7 +187,7 @@ Which product modules are live for a user (optionally within a chapter).
 | Column | Notes |
 |--------|-------|
 | `id`, `user_id` | |
-| `project_id?`, `milestone_id?` | Optional links; task can be inbox-only |
+| `project_id?`, `milestone_id?` | Optional same-user links; inbox-only allowed |
 | `title`, `notes` | |
 | `status` | `todo`, `doing`, `done`, `cancelled` |
 | `due_on`, `completed_at` | |
@@ -127,54 +198,89 @@ Which product modules are live for a user (optionally within a chapter).
 |--------|-------|
 | `id`, `user_id`, `chapter_id?` | |
 | `checked_on` | |
-| `mood` / scores | Structured fields TBD |
-| `body` | Free text (may be sensitive — treat as elevated) |
-| `prompt_set_key` | Which questionnaire version |
+| `mood` | Integer 1–5 (v1 simple) |
+| `energy` | Integer 1–5 (v1 simple) |
+| `focus` | Integer 1–5 (v1 simple) |
+| `body` | Optional short note (elevated sensitivity) |
+| `prompt_set_key` | Default `v1_simple` |
 
 ### Finances
 
-Split for semantic honesty:
+Keep ledgers semantically separated. **Do not** derive “profit” by summing
+generic signed amounts across mixed `tx_kind` values.
 
 #### `finance_accounts`
-
-Cash / brokerage / wallet containers.
 
 | Column | Notes |
 |--------|-------|
 | `id`, `user_id` | |
-| `name`, `currency` | ISO currency |
+| `name`, `currency` | ISO currency (account-native) |
 | `account_kind` | `cash`, `bank`, `brokerage`, `wallet`, `other` |
-| `is_sensitive` | Default true for detailed ledgers |
+| `is_sensitive` | Default true |
 
-#### `finance_transactions`
+#### `finance_transactions` — cash movements & P&L-relevant ops (typed)
 
-Cash movements and categorized income/expense—**not** trading marks.
+Every row has exactly one `tx_kind`. Amounts are in the account currency unless
+`currency` overrides for multi-currency booking (then FX fields required later).
+
+| `tx_kind` | Meaning | Allowed companion fields |
+|-----------|---------|--------------------------|
+| `deposit` | External cash in (not income recognition) | — |
+| `withdrawal` | External cash out (not expense recognition) | — |
+| `transfer` | Move between **own** accounts | Requires `counterparty_account_id` + paired leg or transfer group id; **zero net worth impact** |
+| `income` | Personal income recognition | `income_category`: `employment` \| `freelance` \| `business` \| `other` |
+| `expense` | Personal expense | Optional expense category |
+| `business_revenue` | Business revenue (not automatically “profit”) | May set `revenue_amount` |
+| `business_cost` | Business cost | May set `cost_amount` |
+| `fee` | Fees (banking/broker) | — |
+| `other` | Explicit escape hatch; **excluded** from profit reports by default | |
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `account_id` | |
+| `id`, `user_id`, `account_id` | Composite FK to account |
 | `posted_on` | |
-| `amount` | Signed; currency from account or explicit `currency` |
-| `tx_kind` | `deposit`, `withdrawal`, `transfer`, `income`, `expense`, `fee`, `other` |
-| `income_category` | Null unless income: `employment`, `freelance`, `business`, `other` |
-| `revenue_amount` / `cost_amount` | Optional split when tracking profit ≠ revenue |
+| `amount` | Signed per convention (document inbound positive for deposit/income/revenue) |
+| `currency` | Defaults to account currency |
+| `tx_kind` | See table above |
+| `income_category` | Only when `tx_kind = 'income'` |
+| `revenue_amount` / `cost_amount` | Only for business revenue/cost kinds when splitting |
+| `transfer_group_id` | Links the two legs of a transfer |
+| `counterparty_account_id` | Other account for transfers (same `user_id`) |
 | `notes` | Sensitive |
 
-**Invariant:** Deposits/withdrawals never invent PnL.
+**Invariants:**
+
+- Deposits/withdrawals **never** invent trading or business profit.
+- Transfers must net to zero across legs in their currencies’ cash view (or be
+  clearly FX-marked later); they never appear as income/expense.
+- **Business profit** = sum(`business_revenue`) − sum(`business_cost`) for a
+  period — **not** sum(all transactions), **not** income − expense unless the
+  report is explicitly “personal cashflow.”
+- **Personal cashflow** reports use deposit/withdrawal/income/expense/fee only,
+  labeled as cashflow — not “profit.”
 
 #### `trading_pnl_entries`
 
-Mark-to-market or realized trading results—**orthogonal** to deposits/withdrawals.
+Orthogonal performance ledger — **not** cash.
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `account_id?` | |
-| `period_start`, `period_end` | Or `traded_on` for per-trade |
+| `id`, `user_id`, `account_id?` | Brokerage account optional link |
+| `period_start`, `period_end` or `traded_on` | |
 | `realized_pnl`, `unrealized_pnl` | |
 | `currency` | |
 | `notes` | Sensitive |
 
-**Invariant:** Summing PnL must not be presented as cash balance change.
+**Invariant:** PnL must never be presented as cash balance change; cash in/out
+of a brokerage uses `deposit`/`withdrawal`/`transfer` on `finance_transactions`.
+
+#### Multi-currency reporting
+
+- Each account has a native currency; profile `base_currency` default **RON**.
+- Base-currency reports convert with an explicit rate source/date (implementation
+  later); never silently sum mixed currencies.
+- Transfers across currencies require an FX policy (unresolved detail — see
+  DECISIONS remaining risks).
 
 ### `physical_metrics`
 
@@ -222,11 +328,11 @@ No FKs into XNINE systems. No job runners.
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id?` | Actor when known |
+| `id`, `user_id?` | Subject user / actor when known |
 | `actor_type` | `user`, `system`, `mcp`, `agent` |
 | `action` | e.g. `habit_log.create`, `finance.export`, `mcp.sensitive.read` |
 | `entity_type`, `entity_id` | |
-| `metadata` | JSONB; **no secrets** |
+| `metadata` | JSONB; **no secrets**, no service-role material |
 | `created_at` | Immutable |
 
 ## Relationship sketch
@@ -234,14 +340,16 @@ No FKs into XNINE systems. No job runners.
 ```
 auth.users ──< profiles
      │
-     ├──< chapters ──< module_activations
+     ├──< chapters ──< module_activations (chapter scope)
+     ├──< module_activations (global scope)
      ├──< habits ──< habit_logs
+     │                  └── recovery → original habit_logs (miss preserved)
      ├──< projects ──< milestones
      │       └──────< tasks
      ├──< milestones (standalone ok)
      ├──< tasks (inbox ok)
      ├──< check_ins
-     ├──< finance_accounts ──< finance_transactions
+     ├──< finance_accounts ──< finance_transactions (incl. transfer pairs)
      │                    └──< trading_pnl_entries
      ├──< physical_metrics
      ├──< behavioural_records
@@ -254,32 +362,43 @@ auth.users ──< profiles
 
 - `(user_id, …)` leading indexes on all ownership tables
 - Partial unique: one `chapters.is_current` per user
-- `habit_logs (habit_id, logged_on)`
+- Partial uniques for module activations (global vs chapter) as above
+- `habit_logs (habit_id, logged_on)` where not recovery; recovery unique on
+  `(habit_id, recovers_log_id)`
 - `tasks (user_id, status, due_on)`
-- `finance_transactions (account_id, posted_on)`
+- `finance_transactions (account_id, posted_on)`; `(transfer_group_id)`
 - `trading_pnl_entries (user_id, period_end)`
 - `audit_logs (user_id, created_at desc)`
 
 ## RLS approach (conceptual)
 
+Aligned with `docs/SECURITY.md`:
+
 - Enable RLS on every user-data table.
 - Policies: `auth.uid() = user_id` for SELECT/INSERT/UPDATE/DELETE (as appropriate).
 - `profiles`: users read/update own row only.
-- `audit_logs`: insert via trusted server/MCP paths; users can SELECT own rows; no UPDATE/DELETE for clients.
-- Sensitive tables (`behavioural_records`, finance details): same RLS ownership **plus** application/MCP gates (`ai_accessible`, confirmation, audit). RLS alone is insufficient for “AI must not see this.”
-- Service role: server-only; never in client bundles or MCP tool defaults without explicit admin tools + L3.
+- `audit_logs`: clients SELECT own rows only; INSERT via trusted server/MCP
+  **host process** (never expose service-role to agents); no client UPDATE/DELETE.
+- Sensitive tables: ownership RLS **plus** app/MCP authorization gates.
+- Composite FKs complement RLS (integrity); they do not replace RLS.
+- Service role: process-local on Next.js server / MCP **host** only — never in
+  browser, never returned to Cursor/agents, never in tool responses.
 
 ## Migration strategy
 
-1. Author versioned SQL in `supabase/migrations/` (timestamped).
-2. Human reviews SQL + RLS in PR.
-3. Apply to **hosted Personal OS** Supabase only after L3 approval.
-4. Do **not** use XNINE projects or credentials.
-5. Local Docker Supabase remains optional and off by default.
+1. Require a **dedicated EU development** Supabase project before any real schema
+   experimentation (D015). Do not assume any existing hosted project is linked
+   or safe to modify.
+2. Author versioned SQL in `supabase/migrations/` (timestamped) against that
+   **dev** target only after L3 approval.
+3. Production project (separate) receives migrations only via explicit later L3.
+4. Never use XNINE projects or credentials.
+5. Docker local Supabase remains **optional and stopped** (D018).
 6. No seed of production-like personal data in git.
 
-## Out of scope for foundation
+## Out of scope until authorized
 
 - Creating tables
 - `db push` / `migration up`
 - Editing hosted schemas via MCP or dashboard automation
+- Touching any project that is not the approved Personal OS **dev** project

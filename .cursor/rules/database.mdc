@@ -8,9 +8,9 @@ alwaysApply: false
 
 - Conceptual model lives in `docs/DATABASE_SCHEMA.md`. Do not invent conflicting tables without updating that doc and `docs/DECISIONS.md`.
 - Every user-owned table: `user_id`, RLS enabled, policies `auth.uid() = user_id`.
-- Migrations are versioned SQL under `supabase/migrations/` only — **no** apply without L3 human approval.
-- Foundation / early phases: prefer documenting over applying. Never modify hosted schemas casually.
-- Keep concepts separate: projects, milestones, tasks; finance transactions vs trading PnL; revenue vs profit.
-- Habit log statuses: `completed`, `partial`, `missed`, `not_scheduled`, `recovery` with min vs target.
-- `xnine_tracking` is tracking-only — no FKs or credentials to XNINE systems.
-- Audit logs are append-oriented; no secrets in metadata.
+- Prefer composite FKs `(user_id, parent_id)` to block cross-user refs.
+- `module_activations` use explicit `scope` (`global`|`chapter`) with partial unique indexes — do not rely on nullable `chapter_id` alone for uniqueness.
+- Habit `missed` rows are immutable history; `recovery` is a separate linked row (`recovers_log_id`).
+- Migrations under `supabase/migrations/` apply only with L3 to a **named EU DEV** (later PROD) project — never an unknown hosted project.
+- Keep concepts separate: projects/milestones/tasks; cash vs income/expense vs business revenue/cost vs trading PnL.
+- `xnine_tracking` is tracking-only. Audit logs append-only; no secrets in metadata.

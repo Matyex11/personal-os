@@ -2,9 +2,9 @@
 
 ## Mission
 
-Personal OS is a private, modular life-operating system for one primary user
-(expandable later). It answers three recurring questions with trustworthy data
-and deliberate reflection—not generic productivity noise.
+Personal OS is a private, modular life-operating system for **one primary user**
+in v0 (schema remains user-scoped). It answers three recurring questions with
+trustworthy data and deliberate reflection—not generic productivity noise.
 
 ## Three core questions
 
@@ -13,42 +13,60 @@ and deliberate reflection—not generic productivity noise.
 2. **What matters now?** — Prioritized projects, milestones, recovery needs, and
    commitments that deserve attention this week.
 3. **How did I actually do?** — Honest review of habits (including Partial /
-   Missed / Recovery), projects vs milestones, finances (revenue ≠ profit;
-   trading PnL ≠ cash movement), and behavioural patterns the user chooses to
-   surface.
+   Missed / Recovery **as a linked make-up, not a rewrite**), projects vs
+   milestones, finances (cash ≠ income/expense ≠ business profit ≠ trading PnL),
+   and behavioural patterns the user chooses to surface.
 
-## Modules (activation is per-user / per-chapter)
+## Modules (activation: global defaults + chapter overrides)
 
 | Module | Purpose |
 |--------|---------|
-| **Chapters / History** | Named life periods; context for what “counts” now |
-| **Module activation** | Which domains are live in the current chapter |
-| **Habits** | Recurring behaviours with min vs target and nuanced statuses |
-| **Tasks** | Atomic actionable items (may link to projects) |
-| **Projects** | Multi-step outcomes with optional milestones |
-| **Milestones** | Distinct from projects and tasks — checkpoints / gates |
-| **Check-ins** | Periodic structured self-reports |
-| **Finances** | Multi-currency money tracking with strict semantic separations |
-| **Physical metrics** | Body / training / health measures the user tracks |
-| **Behavioural records** | Private notes/patterns; **not** default AI-accessible |
+| **Chapters / History** | Named life periods; explicit active/closed lifecycle |
+| **Module activation** | Global defaults and per-chapter overrides |
+| **Habits** | Min vs target; statuses including permanent misses + linked recovery |
+| **Tasks** | Atomic actionable items (may link to projects/milestones) |
+| **Projects** | Multi-step outcomes |
+| **Milestones** | Distinct checkpoints / gates — not tasks |
+| **Check-ins** | Simple v1 scores (mood/energy/focus) + optional note |
+| **Finances** | Multi-currency; strict semantic separations |
+| **Physical metrics** | Body / training / health measures |
+| **Behavioural records** | Private; **not** default AI-accessible |
 | **Reviews** | Weekly / monthly / chapter retrospectives |
-| **XNINE (tracking-only)** | Status / notes about XNINE work; **no** execution infra |
+| **XNINE (tracking-only)** | Notes/status only — **no** execution infra |
+
+## Habit honesty
+
+- **Completed** / **Partial** / **Missed** / **Not scheduled** / **Recovery** are
+  first-class.
+- A **missed** day stays missed in history forever.
+- **Recovery** is an additional linked event that can be shown and credited
+  separately — it must not overwrite the original log or fake past streaks.
+- **Not scheduled** days are excluded from adherence denominators.
+
+## Money honesty
+
+- Cash in/out (`deposit` / `withdrawal`) ≠ income/expense recognition.
+- Transfers move value between own accounts; they are not income, expense, or profit.
+- Business **revenue** and **cost** are explicit; profit is revenue − cost for
+  that ledger — not a sum of mixed transaction kinds.
+- Trading **PnL** is a separate performance ledger from cash.
 
 ## Product principles
 
-1. **Truth over vanity metrics.** Partial and Missed are first-class; Recovery is
-   explicit, not silent backfill.
-2. **Semantic honesty in money.** Trading PnL ≠ deposits/withdrawals; revenue ≠
-   profit; employment / freelance / business stay categorized.
-3. **Sensitivity by default.** Behavioural and detailed financial data are
-   private; AI/MCP access is opt-in and audited.
-4. **Modular monolith.** One app, clear module boundaries—not a microservice
-   fleet.
-5. **User ownership.** Every row traces to an authenticated user; RLS is
-   non-negotiable.
-6. **Portability.** Exports must be possible without vendor lock-in theatre.
-7. **Human in the loop for irreversible ops.** Deletes, bulk mutations, and
-   sensitive AI access require confirmation.
+1. **Truth over vanity metrics.**
+2. **Semantic honesty in money.**
+3. **Sensitivity by default** for behavioural and detailed financial data.
+4. **Modular monolith.**
+5. **User ownership** + RLS (+ composite FKs against cross-user refs).
+6. **Portability** — JSON **and** CSV exports.
+7. **Human in the loop** for irreversible ops and sensitive AI access.
+
+## Defaults (provisional — see DECISIONS D013–D023)
+
+- Timezone: `Europe/Bucharest`
+- Base currency: `RON` (multi-currency accounts allowed)
+- Auth: email magic link
+- Check-in v1: mood, energy, focus (1–5) + optional note
 
 ## Non-goals (foundation / near-term)
 
@@ -56,11 +74,14 @@ and deliberate reflection—not generic productivity noise.
 - Social feeds or public sharing
 - XNINE trading / job execution integration
 - Kubernetes, Redis, or unnecessary distributed systems
-- Applying database migrations during the foundation phase
+- Applying database migrations during Phase 0 / 0.1
+- Vercel deploy during Phase 1
+- Assuming any pre-existing hosted Supabase project is safe to modify
 
-## Success for v0 (after foundation)
+## Success criteria by phase
 
-A signed-in user can activate core modules, log habits with correct statuses,
-create a project with milestones and tasks, complete a check-in, and see a
-simple “where am I / what matters” home—without exposing sensitive modules to
-AI by default.
+| Milestone | Success |
+|-----------|---------|
+| **Phase 1** | Sign in (magic link), chapter + module activation, habit log with correct statuses and linked recovery, project/milestone/task tree — against **DEV** Supabase when approved; **no** Vercel |
+| **Later v0** | Check-ins, reviews, physical, finances with honest semantics, exports — per ROADMAP Phases 2–5 |
+| **AI** | Sensitive modules remain closed unless explicitly unlocked |

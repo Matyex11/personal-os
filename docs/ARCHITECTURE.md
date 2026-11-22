@@ -4,123 +4,113 @@
 
 | Item | Status |
 |------|--------|
-| GitHub repo `Matyex11/personal-os` | Present; `main` clean at inspect time |
-| `README.md` | Stub (`# personal-os`) |
-| `.gitignore` | Node/Next/env/Vercel-aware |
-| `package.json` / app code | **Absent** — greenfield |
-| Supabase CLI config | `supabase/config.toml` present (`project_id = "personal-os-1"`, Postgres **17**) |
-| `supabase/migrations/` | Empty (created in foundation); **no applied migrations** |
-| `.env` / credentials | None in repo; `.env*` gitignored |
-| Docker / local Supabase | Not running; **must not be started** in foundation |
-| Hosted Supabase link | Not verified from this machine (`supabase` CLI not on PATH; `npx supabase` works). Treat hosted project as future L3 work only |
+| GitHub repo `Matyex11/personal-os` | Present; foundation branch has Phase 0 docs |
+| `package.json` / app code | **Absent** — greenfield (Phase 1+) |
+| Supabase CLI config | `supabase/config.toml` (`project_id = "personal-os-1"`, Postgres **17**) |
+| `supabase/migrations/` | Empty placeholder; **no applied migrations** |
+| `.env` / credentials | None in repo |
+| Docker / local Supabase | **Stopped**; must not be started without L3 |
+| Hosted Supabase link | **Not verified / not assumed safe** — treat any existing hosted project as unknown until a dedicated **EU development** project is provisioned (D015) |
 | XNINE infra | Must not be reused |
+
+## Environment separation (dev vs production)
+
+| Environment | Purpose | Rule |
+|-------------|---------|------|
+| **Local app** | Next.js / Vitest / Playwright against configured URLs | Secrets in `.env.local` only |
+| **Supabase DEV (required)** | Dedicated **EU** Personal OS project for schema experiments & Phase 1+ DB work | Must exist **before** real schema experimentation; L3 to apply migrations |
+| **Supabase PROD** | Real user data (later) | Separate project; never target casually; L3 only |
+| **Docker local Supabase** | Optional offline DB | **Stopped**; L3 to start; not required for Phase 1 |
+| **MCP host** | Separate process from web | Vendor **deferred** (D017); package lives **in-repo** under `mcp/` (D016) |
+
+**Do not** assume the “existing” hosted project (if any) is linked to this repo or
+safe to modify. Agents must not probe, migrate, or mutate hosted schemas until
+the human names the DEV project and approves the exact action.
+
+```
+┌─────────────────────────────────────────────┐
+│ Next.js modular monolith                    │
+│  (local Phase 1; Vercel deploy deferred)    │
+│  Zod · user-scoped Supabase client          │
+└─────────────────┬───────────────────────────┘
+                  │ service role: server process only
+                  ▼
+┌─────────────────────────────────────────────┐
+│ Supabase DEV (EU, dedicated) ──► later PROD │
+│  Postgres + RLS · Auth · Storage            │
+└─────────────────┬───────────────────────────┘
+                  ▲
+                  │ typed, authorized, audited tools
+┌─────────────────┴───────────────────────────┐
+│ Personal OS MCP (in-repo `mcp/` package)    │
+│  host process holds secrets; agents do not  │
+└─────────────────────────────────────────────┘
+```
 
 ## Stack decision (accepted with notes)
 
 | Layer | Proposal | Verdict |
 |-------|----------|---------|
-| Web app | Next.js + TypeScript (App Router) | **Accept** — fits modular monolith + Vercel |
-| UI | Tailwind CSS + shadcn/ui | **Accept** — fast, consistent; keep design intentional (see project frontend rules) |
-| Charts | Recharts | **Accept** for v0; revisit if bundle weight hurts Core Web Vitals |
-| Architecture style | Modular monolith | **Accept** — required; reject premature microservices/K8s/Redis |
-| Data | Supabase Postgres | **Accept** — hosted for future work; local Docker optional later (L3) |
-| Auth / Storage | Supabase Auth + Storage | **Accept** |
-| Validation | Zod | **Accept** — all external boundaries |
-| Unit / integration tests | Vitest | **Accept** |
-| E2E | Playwright | **Accept** |
-| Agent tooling | Dedicated Personal OS MCP SDK server | **Accept** — separate from web deploy |
-| Web hosting | Vercel | **Accept** |
-| MCP hosting | Separate host from Vercel web app | **Accept** — isolation + independent scaling/secrets |
+| Web app | Next.js + TypeScript (App Router) | **Accept** |
+| UI | Tailwind CSS + shadcn/ui | **Accept** |
+| Charts | Recharts | **Accept** for v0 (U012 revisit if needed) |
+| Architecture style | Modular monolith | **Accept** |
+| Data | Supabase Postgres | **Accept** — **DEV project first**; PROD later |
+| Auth | Supabase Auth — **email magic link** (D014) | **Accept** |
+| Validation | Zod | **Accept** |
+| Tests | Vitest + Playwright | **Accept** |
+| MCP | In-repo `mcp/` SDK server | **Accept**; host vendor deferred |
+| Web hosting | Vercel | **Accept later** — **not in Phase 1** (D023) |
 | Source | GitHub | **Accept** |
 
-### Challenges / constraints (not rejections)
+### Challenges / constraints
 
-1. **No local DB in foundation.** Docker stays stopped. Schema is documented only;
-   migrations are authored later under human L3 approval against **hosted**
-   Personal OS Supabase—not XNINE.
-2. **MCP is not “another microservice domain.”** It is a thin, audited tool
-   façade over the same modular monolith APIs/DB policies—not a second business
-   logic island.
-3. **Avoid Redis/queues** until a measured need (e.g., heavy async exports).
-4. **shadcn + Recharts** must not dictate a generic dashboard-first UX for
-   reflective surfaces; product UI follows Personal OS principles.
-
-## High-level shape
-
-```
-┌─────────────────────────────────────────────┐
-│ Next.js modular monolith (Vercel)           │
-│  app/ (routes) · modules/* · lib/*          │
-│  Zod boundaries · Supabase user client      │
-└─────────────────┬───────────────────────────┘
-                  │ service role only on server
-                  ▼
-┌─────────────────────────────────────────────┐
-│ Supabase (hosted Personal OS project)       │
-│  Postgres + RLS · Auth · Storage            │
-└─────────────────┬───────────────────────────┘
-                  ▲
-                  │ audited tool calls (scoped)
-┌─────────────────┴───────────────────────────┐
-│ Personal OS MCP server (separate host)      │
-│  read / write / admin tools · confirmations │
-└─────────────────────────────────────────────┘
-```
+1. Schema work waits on a dedicated EU DEV Supabase project; Docker stays off.
+2. MCP is a **thin authorized façade** over domain services — not a second
+   business-logic island and **not** a SQL console.
+3. No Redis/K8s/microservices in near-term roadmap.
+4. Habit **recovery** is a linked event; historical `missed` rows stay permanent
+   (see `DATABASE_SCHEMA.md` reporting table).
+5. Finance reporting must not derive ambiguous “profit” from mixed transactions.
 
 ## Modular monolith layout (target)
 
 ```
 src/
-  app/                 # Next.js App Router
-  modules/
-    chapters/
-    habits/
-    tasks/
-    projects/
-    milestones/
-    checkins/
-    finances/
-    physical/
-    behavioural/       # sensitive — extra gates
-    reviews/
-    xnine-tracking/    # tracking-only
-  lib/
-    db/                # Supabase clients, RLS-aware helpers
-    auth/
-    validation/        # shared Zod
-    audit/
-  components/          # shared UI
-mcp/                   # MCP server package (separate deployable)
-supabase/migrations/   # SQL only; apply with L3 approval
-tests/
-  unit/
-  e2e/
+  app/
+  modules/…          # including finances, behavioural (sensitive)
+  lib/db|auth|validation|audit
+  components/
+mcp/                 # in-repo MCP package (Phase 4+); separate deployable
+supabase/migrations/ # apply only to approved DEV (then PROD) with L3
+tests/unit|e2e
 ```
 
-Foundation creates placeholder `src/`, `supabase/migrations/`, and `tests/`
-directories only—**no full Next.js scaffold yet** (phase gate).
+Phase 0/0.1: placeholders and docs only — **no** Next.js scaffold yet.
+
+## MCP boundary (consistency with MCP_SPEC)
+
+- MCP server runs as its own process with **server-side authorization** on every tool.
+- Tools are explicit, user-scoped operations — **no** unrestricted DB query tool,
+  **no** raw SQL, **no** service-role disclosure to agents.
+- Domain rules live in the monolith (or shared packages); MCP calls those paths.
 
 ## Testing strategy (initial)
 
 | Layer | Tool | Focus |
 |-------|------|-------|
-| Unit / pure domain | Vitest | Status math (habits min/target), finance classifiers, Zod schemas |
-| Component | Vitest + Testing Library (optional early) | Critical form states |
-| E2E | Playwright | Auth smoke, habit log, project+milestone create, RLS denial cases via UI |
-| DB | SQL tests / later pgTAP or policy tests | RLS ownership; run only when a DB is available under approval |
-| MCP | Contract tests | Permission matrix, sensitive module denial, audit events |
+| Unit | Vitest | Habit status/recovery reporting, finance classifiers, Zod |
+| E2E | Playwright | Auth magic-link smoke, habit log (incl. recovery link), project tree |
+| DB | When DEV DB available | RLS + composite ownership; never start Docker without L3 |
+| MCP | Phase 4 | Permission matrix, sensitive denial, audit events |
 
-CI should run Vitest on every PR; Playwright on main/PRs once the app boots.
-No test runner is installed in the foundation phase.
+## Defaults (provisional product decisions)
 
-## Deployment topology
-
-- **Web:** Vercel ↔ hosted Supabase (URL + anon key public; service role server-only).
-- **MCP:** Separate Node host; its own secrets; never embed service role in the
-  browser or in Cursor chat logs.
-- **Never** point Personal OS at XNINE databases or ops MCP servers.
+See `docs/DECISIONS.md` D013–D023: single-user v0, magic link, EU DEV Supabase,
+in-repo MCP, Docker optional/stopped, `Europe/Bucharest`, RON + multi-currency,
+simple check-ins, JSON+CSV export, no Phase 1 Vercel deploy.
 
 ## Open architecture items
 
-See `docs/DECISIONS.md` unresolved list (exact MCP host, monorepo vs `mcp/`
-folder, email vs OAuth-only, etc.).
+Remaining: concrete DEV/PROD project refs, MCP host vendor, FX policy for
+cross-currency transfers, cosmetic CLI `project_id` rename — see DECISIONS.

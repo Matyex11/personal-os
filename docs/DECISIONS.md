@@ -11,107 +11,159 @@ the bottom until the human decides.
   init (`config.toml`, Postgres 17). No app code.
 - **Choice:** Create docs/structure around existing Supabase folder; do not
   delete `supabase/config.toml` or rewrite git history.
-- **Consequences:** `project_id` remains `personal-os-1` until human renames.
+- **Consequences:** CLI `project_id` remains `personal-os-1` until human renames
+  (see R001).
 
 ### D002 — Modular monolith; reject premature distributed infra
 
-- **Context:** Proposal included microservices-class options by implication.
 - **Choice:** Single Next.js modular monolith + separate MCP process only.
   No K8s, no Redis, no service mesh in near-term roadmap.
-- **Consequences:** Module boundaries live under `src/modules/*`.
 
 ### D003 — Accept proposed web/data/test stack
 
-- **Context:** Next.js/TS, Tailwind+shadcn, Recharts, Supabase, Zod,
-  Vitest+Playwright, Vercel, GitHub.
-- **Choice:** Accept for Phase 1 scaffold, with UX caution on generic
-  dashboards and bundle weight for Recharts.
-- **Consequences:** Phase 1 scaffolding follows this stack unless human
-  overrides before Phase 1 starts.
+- **Choice:** Next.js/TS, Tailwind+shadcn, Recharts, Supabase, Zod,
+  Vitest+Playwright, GitHub for Phase 1+. Vercel accepted as eventual host but
+  **not** deployed in Phase 1 (D023).
 
-### D004 — Dedicated Personal OS MCP, separate host
+### D004 — Dedicated Personal OS MCP, separate process
 
-- **Context:** Need agent tooling without conflating with XNINE ops.
-- **Choice:** Separate MCP SDK server and host; not embedded as unchecked
-  admin in the web app; not XNINE MCP.
-- **Consequences:** Implementation deferred to Phase 4; spec in `MCP_SPEC.md`.
+- **Choice:** Separate MCP SDK server from the web app; not XNINE MCP.
+- **Update (0.1):** Package lives **in-repo** (`mcp/`, D016); host vendor deferred (D017).
 
-### D005 — Hosted Supabase for future DB work; Docker stays off
+### D005 — Environment separation; Docker stays off
 
-- **Context:** Docker is stopped; local stack must not be started now.
-- **Choice:** Document schema only in Phase 0; future migrations target hosted
-  Personal OS Supabase under L3 approval. No XNINE DB reuse.
-- **Consequences:** Dev UX for DB may be slower until Docker policy revisited.
+- **Context:** Docker is stopped; hosted linkage unverified; risk of mutating the
+  wrong project.
+- **Choice (0.1 correction):** Require a **dedicated EU development** Supabase
+  project before real schema experimentation. Do **not** assume any existing
+  hosted project is linked or safe. Production is a **separate** project.
+  Docker remains optional and **stopped** (D018). No XNINE DB reuse.
+- **Consequences:** Phase 1 DB work targets named DEV only after L3.
 
 ### D006 — Sensitive data default-deny for AI
 
-- **Context:** Behavioural and financial detail must not leak into agents.
 - **Choice:** `ai_accessible` default false; MCP sensitive tools need
-  confirmation + audit.
-- **Consequences:** Convenience features that summarize private text need
-  explicit unlocks.
+  confirmation + audit; server-side AuthZ mandatory (see MCP_SPEC).
 
-### D007 — Habit statuses are five-way and Recovery is explicit
+### D007 — Habit statuses five-way; recovery is a linked event
 
-- **Context:** Binary done/not-done lies.
-- **Choice:** `completed` | `partial` | `missed` | `not_scheduled` | `recovery`
-  with min vs target semantics.
-- **Consequences:** Streak and adherence logic must respect `not_scheduled` and
-  must not silently rewrite misses as completed.
+- **Choice:** `completed` \| `partial` \| `missed` \| `not_scheduled` \| `recovery`.
+- **Update (0.1):** Original `missed` (primary) logs are **permanent**. Recovery
+  is a **separate** row with `recovers_log_id`; it must not rewrite historical
+  adherence. Reporting rules live in `DATABASE_SCHEMA.md`.
 
 ### D008 — Projects ≠ milestones ≠ tasks
 
-- **Context:** Collapsing concepts breaks planning clarity.
-- **Choice:** Three tables/entities with optional FKs.
-- **Consequences:** UI and MCP tools expose them separately.
+- **Choice:** Three entities with optional same-user FKs (composite where practical).
 
-### D009 — Finance semantic split
+### D009 — Finance semantic split (strengthened 0.1)
 
-- **Context:** Trading PnL confused with cash; revenue confused with profit.
-- **Choice:** `finance_transactions` vs `trading_pnl_entries`; income categories
-  include employment/freelance/business; revenue/cost fields when needed;
-  multi-currency via account + explicit currency.
-- **Consequences:** Reporting must label series correctly.
+- **Choice:** Typed `finance_transactions` kinds separate cash movements
+  (`deposit`/`withdrawal`/`transfer`), personal `income`/`expense`,
+  `business_revenue`/`business_cost`, and fees from **`trading_pnl_entries`**.
+  Profit is never derived by summing generic mixed transactions. Transfers are
+  paired, net-zero cash moves. Multi-currency via account currency + base **RON**.
 
 ### D010 — XNINE module is tracking-only
 
-- **Context:** User has XNINE systems elsewhere.
-- **Choice:** Personal OS stores status/notes only; no execution integration;
-  no shared credentials.
-- **Consequences:** Agents must refuse XNINE infra wiring requests in this repo.
+- **Choice:** Status/notes only; no execution integration; no shared credentials.
 
 ### D011 — Phase 0 does not scaffold the full Next.js app
 
-- **Context:** Mission says establish foundation and stop for review; do not
-  implement the full app.
-- **Choice:** Placeholders for `src/`, `tests/`, `supabase/migrations/` only.
-- **Consequences:** Phase 1 starts with official scaffold under human OK.
+- **Choice:** Placeholders only until Phase 1 is explicitly authorized.
 
 ### D012 — No PR required for foundation unless human wants it
 
-- **Context:** Prefer human review of files; avoid drive-by PR process noise.
-- **Choice:** Leave changes on a review branch / working tree for human; do not
-  treat forge PR as mandatory for Phase 0.
-- **Consequences:** Coordinator/human decides when to merge.
+- **Choice:** Prefer human review; commit on foundation branch is OK.
 
 ---
 
-## Unresolved decisions (need human)
+## Phase 0.1 product defaults (provisional until human confirms)
 
-| ID | Question | Notes / options |
-|----|----------|-----------------|
-| U001 | Hosted Supabase project ref & region for Personal OS | Not verified from this environment; CLI not globally installed |
-| U002 | Auth providers for v0 | Email magic link only vs Google/GitHub OAuth vs both |
-| U003 | Single-user lockdown vs multi-user from day one | RLS supports multi-user; product may stay single-user |
-| U004 | Monorepo package for MCP (`mcp/` in-repo) vs separate repo | Lean to in-repo `mcp/` folder |
-| U005 | MCP host vendor | Fly.io / Railway / Cloudflare Workers / other |
-| U006 | When to allow Docker local Supabase | Stay hosted-only vs optional local later |
-| U007 | Rename Supabase `project_id` (`personal-os-1` → `personal-os`) | Cosmetic |
-| U008 | Base currency & primary timezone defaults | Profile fields exist conceptually |
-| U009 | Check-in questionnaire v1 fields | Mood scales, prompts TBD |
-| U010 | Export format priority | JSON dump vs CSV zip vs both |
-| U011 | Whether Phase 1 includes Vercel deploy | Optional in roadmap |
-| U012 | Recharts vs lighter charts if performance bites | Recharts accepted for v0 |
+These resolve prior U00x items. Marked **provisional** — human may override
+before Phase 1 without treating it as an emergency.
+
+### D013 — Single-user v0; user-scoped architecture *(provisional)*
+
+- **Choice:** Product focus is one primary user; every row still has `user_id` +
+  RLS (multi-user-safe schema, single-user product).
+- Resolves **U003**.
+
+### D014 — Email magic-link auth for v0 *(provisional)*
+
+- **Choice:** Supabase email magic link only for v0; OAuth later if needed.
+- Resolves **U002**.
+
+### D015 — Dedicated EU development Supabase project *(provisional)*
+
+- **Choice:** Provision/use a dedicated **EU** Personal OS **DEV** project before
+  schema experiments. PROD is separate and later. Exact project ref still TBD
+  (see R002).
+- Partially resolves **U001**.
+
+### D016 — MCP as in-repository package *(provisional)*
+
+- **Choice:** `mcp/` directory in this repo (separate deployable), not a second
+  git repo for v0.
+- Resolves **U004**.
+
+### D017 — Defer MCP hosting selection *(provisional)*
+
+- **Choice:** Decide Fly / Railway / Cloudflare / other when Phase 4 nears.
+- Keeps **U005** open as R003.
+
+### D018 — Docker remains optional and stopped *(provisional)*
+
+- **Choice:** Do not start Docker in Phase 0/0.1/1 by default; L3 if ever needed.
+- Resolves **U006**.
+
+### D019 — Default timezone `Europe/Bucharest` *(provisional)*
+
+- **Choice:** Profile default IANA TZ `Europe/Bucharest`.
+- Resolves timezone part of **U008**.
+
+### D020 — Base currency RON with multi-currency support *(provisional)*
+
+- **Choice:** `profiles.base_currency = RON`; accounts may use other ISO
+  currencies; reporting converts explicitly later.
+- Resolves currency part of **U008**.
+
+### D021 — Simple initial check-in fields *(provisional)*
+
+- **Choice:** v1 = `mood`, `energy`, `focus` (1–5) + optional short `body`;
+  `prompt_set_key = v1_simple`.
+- Resolves **U009**.
+
+### D022 — Export JSON and CSV *(provisional)*
+
+- **Choice:** Both formats in the portability/export flow.
+- Resolves **U010**.
+
+### D023 — No Vercel deployment in Phase 1 *(provisional)*
+
+- **Choice:** Phase 1 is local scaffold + DEV DB work only; Vercel is L3 in a
+  later phase.
+- Resolves **U011**.
+
+### D024 — Composite FKs + explicit module activation scope *(provisional)*
+
+- **Choice:** Prefer `(user_id, parent_id)` FKs; `module_activations.scope`
+  `global`\|`chapter` with partial unique indexes (nullable-safe).
+- **Correction:** Replaces naive `UNIQUE (user_id, chapter_id, module_key)`.
+
+---
+
+## Remaining unresolved / risks
+
+| ID | Question | Notes |
+|----|----------|-------|
+| R001 | Rename CLI `project_id` (`personal-os-1` → `personal-os`) | Cosmetic (ex-U007) |
+| R002 | Concrete Supabase **DEV** (and later PROD) project refs | Human must provide; do not invent or scrape |
+| R003 | MCP host vendor | Deferred (D017 / ex-U005) |
+| R004 | FX policy for cross-currency transfers | Rates source, mid-market vs booked rate |
+| R005 | Partial-credit numeric policy for habit `partial` | Default 0.5 vs binary “min met” flag in UI |
+| R006 | Recharts vs lighter charts if performance bites | Ex-U012; accepted for v0 |
+| R007 | Whether PROD may ever be same org different project only | Assumed separate projects |
 
 ---
 
@@ -119,11 +171,11 @@ the bottom until the human decides.
 
 | Check | Result |
 |-------|--------|
-| `git status` | Clean on `main` before foundation edits |
+| `git status` | Clean on `main` before Phase 0; foundation work on `cursor/personal-os-foundation-67da` |
 | `package.json` | Missing (expected) |
 | Global `supabase` CLI | **Not on PATH** |
 | `npx supabase --version` | `3.2.0` |
 | `node` / `npx` | `v24.22.1` / `11.21.0` |
-| Docker / `supabase status` | Not run / not started (constrained) |
+| Docker / `supabase status` | Not started (constrained) |
 | `.env` files | None present |
-| Hosted project link | **Unknown** — not verified |
+| Hosted project link | **Unknown / unsafe to assume** |
