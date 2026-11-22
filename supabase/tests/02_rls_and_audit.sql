@@ -4,11 +4,6 @@
 
 begin;
 
-create temporary table _t (
-  u1 uuid primary key,
-  u2 uuid primary key
-);
-
 do $$
 declare
   u1 uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -35,9 +30,6 @@ begin
       now(), now(), '', '', '', ''
     );
 
-  insert into _t(u1, u2) values (u1, u2);
-
-  -- As u1: create own chapter
   perform set_config('request.jwt.claim.sub', u1::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
   set local role authenticated;
@@ -51,18 +43,17 @@ begin
     raise exception 'own-record SELECT/INSERT failed for chapters (got %)', n;
   end if;
 
-  -- Cross-user INSERT must fail WITH CHECK
+  -- Cross-user INSERT must fail WITH CHECK / RLS
   begin
     insert into public.chapters (user_id, title, started_on, status, is_current)
     values (u2, 'stolen', current_date, 'planned', false);
-    raise exception 'cross-user chapter INSERT should have failed';
+    raise exception 'UNEXPECTED_SUCCESS: cross-user chapter INSERT';
   exception
     when insufficient_privilege then null;
-    when others then
-      if sqlerrm like '%cross-user chapter INSERT%' then raise;
-      end if;
-      -- RLS violation / check violation expected
-      null;
+    when check_violation then null;
+    when raise_exception then
+      if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
+      raise;
   end;
 
   -- Cross-user SELECT: switch to u2, must not see u1 chapter
@@ -76,29 +67,27 @@ begin
     raise exception 'cross-user SELECT must return 0 rows (got %)', n;
   end if;
 
-  -- Hard DELETE unavailable
+  -- Hard DELETE unavailable (no GRANT)
   begin
     delete from public.chapters where id = ch1;
-    raise exception 'authenticated DELETE on chapters must fail';
+    raise exception 'UNEXPECTED_SUCCESS: authenticated DELETE on chapters';
   exception
     when insufficient_privilege then null;
-    when others then
-      if sqlerrm like '%DELETE on chapters must fail%' then raise;
-      end if;
-      null;
+    when raise_exception then
+      if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
+      raise;
   end;
 
   -- Audit INSERT denied (no grant / no policy)
   begin
     insert into public.audit_logs (user_id, actor_type, action)
     values (u2, 'user', 'test.should_fail');
-    raise exception 'authenticated audit INSERT must fail';
+    raise exception 'UNEXPECTED_SUCCESS: authenticated audit INSERT';
   exception
     when insufficient_privilege then null;
-    when others then
-      if sqlerrm like '%audit INSERT must fail%' then raise;
-      end if;
-      null;
+    when raise_exception then
+      if sqlerrm like 'UNEXPECTED_SUCCESS:%' then raise; end if;
+      raise;
   end;
 
   reset role;

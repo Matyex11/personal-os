@@ -156,47 +156,110 @@ create policy module_activations_update_own on public.module_activations
 
 -- ---------------------------------------------------------------------------
 -- habit cadence validator (DB-level; mirrors habitCadenceSchema v1)
+-- Fail-closed: always returns TRUE or FALSE — never NULL (CHECK accepts NULL).
+-- IMMUTABLE, SECURITY INVOKER, side-effect-free. Invalid dates → FALSE.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.is_valid_habit_cadence(c jsonb)
 returns boolean
-language sql
+language plpgsql
 immutable
+security invoker
 set search_path = ''
 as $$
-  select
-    c is not null
-    and jsonb_typeof(c) = 'object'
-    and c->>'kind' in ('daily', 'weekdays')
-    and c->>'startOn' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-    and (
-      not (c ? 'endOn')
-      or c->'endOn' = 'null'::jsonb
-      or (
-        jsonb_typeof(c->'endOn') = 'string'
-        and c->>'endOn' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-        and (c->>'endOn')::date >= (c->>'startOn')::date
-      )
-    )
-    and (
-      c->>'kind' <> 'weekdays'
-      or (
-        jsonb_typeof(c->'weekdays') = 'array'
-        and jsonb_array_length(c->'weekdays') between 1 and 7
-        and not exists (
-          select 1
-          from jsonb_array_elements(c->'weekdays') as t(elem)
-          where jsonb_typeof(elem) <> 'number'
-             or (elem #>> '{}')::numeric <> trunc((elem #>> '{}')::numeric)
-             or (elem #>> '{}')::int < 1
-             or (elem #>> '{}')::int > 7
-        )
-      )
-    );
+declare
+  kind text;
+  start_txt text;
+  end_txt text;
+  start_d date;
+  end_d date;
+  elem jsonb;
+  n numeric;
+  weekday_count integer;
+begin
+  if c is null or jsonb_typeof(c) is distinct from 'object' then
+    return false;
+  end if;
+
+  kind := c->>'kind';
+  if kind is null or kind not in ('daily', 'weekdays') then
+    return false;
+  end if;
+
+  if not (c ? 'startOn') or jsonb_typeof(c->'startOn') is distinct from 'string' then
+    return false;
+  end if;
+  start_txt := c->>'startOn';
+  if start_txt is null or start_txt !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+    return false;
+  end if;
+  begin
+    start_d := start_txt::date;
+    if to_char(start_d, 'YYYY-MM-DD') is distinct from start_txt then
+      return false;
+    end if;
+  exception
+    when others then
+      return false;
+  end;
+
+  -- endOn omitted or JSON null → open-ended; otherwise must be valid date ≥ startOn
+  if (c ? 'endOn') and (c->'endOn') is distinct from 'null'::jsonb then
+    if jsonb_typeof(c->'endOn') is distinct from 'string' then
+      return false;
+    end if;
+    end_txt := c->>'endOn';
+    if end_txt is null or end_txt !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      return false;
+    end if;
+    begin
+      end_d := end_txt::date;
+      if to_char(end_d, 'YYYY-MM-DD') is distinct from end_txt then
+        return false;
+      end if;
+    exception
+      when others then
+        return false;
+    end;
+    if end_d < start_d then
+      return false;
+    end if;
+  end if;
+
+  if kind = 'weekdays' then
+    if not (c ? 'weekdays') or jsonb_typeof(c->'weekdays') is distinct from 'array' then
+      return false;
+    end if;
+    weekday_count := jsonb_array_length(c->'weekdays');
+    if weekday_count is null or weekday_count < 1 or weekday_count > 7 then
+      return false;
+    end if;
+    for elem in select value from jsonb_array_elements(c->'weekdays')
+    loop
+      if jsonb_typeof(elem) is distinct from 'number' then
+        return false;
+      end if;
+      begin
+        n := (elem #>> '{}')::numeric;
+      exception
+        when others then
+          return false;
+      end;
+      if n is distinct from trunc(n) or n < 1 or n > 7 then
+        return false;
+      end if;
+    end loop;
+  end if;
+
+  -- kind = daily: optional weekdays ignored (matches habitCadenceSchema)
+  return true;
+end;
 $$;
 
+-- CHECK evaluation runs as the inserting role → authenticated needs EXECUTE.
 revoke all on function public.is_valid_habit_cadence(jsonb) from public;
-revoke all on function public.is_valid_habit_cadence(jsonb) from anon, authenticated, service_role;
+revoke all on function public.is_valid_habit_cadence(jsonb) from anon, service_role;
+grant execute on function public.is_valid_habit_cadence(jsonb) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- habits
@@ -219,7 +282,8 @@ create table public.habits (
   unique (user_id, id),
   constraint habits_min_nonneg check (min_value >= 0),
   constraint habits_min_target check (target_value >= min_value),
-  constraint habits_cadence_v1 check (public.is_valid_habit_cadence(cadence)),
+  -- IS TRUE so a NULL function result cannot pass the CHECK.
+  constraint habits_cadence_v1 check (public.is_valid_habit_cadence(cadence) is true),
   foreign key (user_id, chapter_id)
     references public.chapters (user_id, id)
     on delete set null (chapter_id)
@@ -260,12 +324,18 @@ create table public.habit_logs (
     (status = 'recovery') = (recovers_log_id is not null)
   ),
   constraint habit_logs_value_nonneg check (value is null or value >= 0),
+  -- NO ACTION DEFERRABLE: individual habit/original-log deletes still fail while
+  -- dependents exist (checked at statement/transaction end). Whole-account purge
+  -- (auth.users CASCADE to habits + habit_logs in one transaction) succeeds
+  -- without casually CASCADE-wiping history on single-habit delete.
   foreign key (user_id, habit_id)
     references public.habits (user_id, id)
-    on delete restrict,
+    on delete no action
+    deferrable initially deferred,
   foreign key (user_id, habit_id, recovers_log_id)
     references public.habit_logs (user_id, habit_id, id)
-    on delete restrict
+    on delete no action
+    deferrable initially deferred
 );
 
 create unique index habit_logs_primary_unique
@@ -554,5 +624,16 @@ begin
      or has_function_privilege('service_role', 'public.enforce_habit_log_immutability()', 'EXECUTE')
   then
     raise exception 'API roles must not EXECUTE enforce_habit_log_immutability';
+  end if;
+
+  -- cadence validator: authenticated must EXECUTE (CHECK on INSERT/UPDATE); anon/service_role must not
+  if not has_function_privilege('authenticated', 'public.is_valid_habit_cadence(jsonb)', 'EXECUTE') then
+    raise exception 'authenticated must EXECUTE is_valid_habit_cadence';
+  end if;
+  if has_function_privilege('anon', 'public.is_valid_habit_cadence(jsonb)', 'EXECUTE') then
+    raise exception 'anon must not EXECUTE is_valid_habit_cadence';
+  end if;
+  if has_function_privilege('service_role', 'public.is_valid_habit_cadence(jsonb)', 'EXECUTE') then
+    raise exception 'service_role must not EXECUTE is_valid_habit_cadence';
   end if;
 end $$;

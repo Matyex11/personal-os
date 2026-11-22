@@ -61,6 +61,8 @@ Aligned with `docs/DATABASE_SCHEMA.md` and the Phase 1B migration draft:
 3. Browser: publishable (anon) key + user session only — **table grants revoked from `anon`**.
 4. Authenticated clients get **SELECT/INSERT/UPDATE** only (no DELETE / TRUNCATE /
    REFERENCES / TRIGGER / MAINTAIN). Prefer close/deactivate/status over hard delete.
+   Cadence CHECK helper `is_valid_habit_cadence` is EXECUTE-granted to authenticated
+   only (not anon / service_role).
 5. Composite FKs `(user_id, parent_id)` prevent cross-user parent refs; optional
    links use PG17 `ON DELETE SET NULL (col)` so `user_id` is never nullified.
 6. Defence in depth: sensitive modules need app/MCP authorization even when RLS
@@ -111,8 +113,10 @@ Require L3 human approval **and** UI/MCP confirmation:
 - Original `missed` (and other primary) logs are not rewritten by recovery.
 - Security/analytics code must not “fix” history by updating past statuses.
 - App clients have **no DELETE** grant/policy on `habits` / `habit_logs`.
-- `habit_logs` → `habits` FK is `ON DELETE RESTRICT` so privileged parent removal
-  cannot silently wipe history.
+- `habit_logs` → `habits` (and recovery → original) use
+  `ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED`: individual habit/original
+  deletes cannot silently wipe or orphan history; whole-account purge via
+  `auth.users` CASCADE still completes transactionally.
 
 ## Auth open-redirect / signup safeguards
 

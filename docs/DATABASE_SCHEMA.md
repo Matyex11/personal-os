@@ -135,7 +135,9 @@ Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
 - App: `createHabitSchema` embeds `habitCadenceSchema`; `createHabit()` is the
   server-only write boundary (rejects bad kinds, empty weekdays, invalid ISO
   weekdays 1–7, invalid `endOn < startOn`, negative mins).
-- DB: `public.is_valid_habit_cadence(cadence)` CHECK + `min_value >= 0`.
+- DB: fail-closed `public.is_valid_habit_cadence(jsonb)` (IMMUTABLE, SECURITY
+  INVOKER; always TRUE/FALSE; authenticated EXECUTE for CHECK) with
+  `CHECK (… IS TRUE)` + `min_value >= 0`.
 
 ### `habit_logs`
 
@@ -179,8 +181,11 @@ Optional chapter link: `(user_id, chapter_id)` → `chapters (user_id, id)`
    - Trigger or SECURITY DEFINER insert function: verify referenced row’s
      `status IN ('missed','partial')` and `habit_id` matches.
 5. Do not delete the original log when recovering. Clients have **no DELETE**
-   privilege on `habit_logs` / `habits`. FK `habit_logs` → `habits` is
-   `ON DELETE RESTRICT` so history cannot be cascade-wiped.
+   privilege on `habit_logs` / `habits`. FKs `habit_logs` → `habits` and
+   recovery → original use `ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED`:
+   individual habit/original deletes still fail while dependents exist; whole
+   `auth.users` CASCADE purge can complete in one transaction without casually
+   CASCADE-wiping history on single-habit delete.
 6. Unique: one primary log per `(habit_id, logged_on)` where
    `status <> 'recovery'`; recoveries are additional rows (unique on
    `(habit_id, recovers_log_id)` for recovery rows).
@@ -436,6 +441,10 @@ Aligned with `docs/SECURITY.md` and `docs/PHASE_1B_L3_STOP.md`:
 - `audit_logs`: SELECT own only; no client INSERT/UPDATE/DELETE; trusted writing deferred.
 - Trigger/security functions: EXECUTE revoked from API roles; `handle_new_user`
   EXECUTE only for `supabase_auth_admin`.
+- `is_valid_habit_cadence(jsonb)`: EXECUTE for `authenticated` only (CHECK path);
+  revoked from anon / service_role / PUBLIC.
+- Account deletion: user-owned rows CASCADE from `auth.users`; habit history FKs
+  are deferred NO ACTION so purge works without allowing single-habit history wipe.
 - Sensitive tables: ownership RLS **plus** app/MCP authorization gates.
 - Composite FKs complement RLS (integrity); they do not replace RLS.
 - Service role: process-local on Next.js server / MCP **host** only — never in
