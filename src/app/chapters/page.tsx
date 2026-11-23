@@ -4,10 +4,12 @@ import { ActionForm } from "@/components/forms/action-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChapterCardActions } from "@/components/chapters/chapter-card-actions";
 import { ChapterCreateForm } from "@/components/chapters/chapter-create-form";
+import { ChapterModuleOverrides } from "@/components/chapters/chapter-module-overrides";
 import { upsertModuleAction } from "@/app/actions/domain";
 import { todayInTimeZone } from "@/lib/dates/calendar";
 import { listChapters } from "@/modules/chapters/service";
 import { getProfileTimeZone } from "@/modules/habits/service";
+import { resolveModuleActivations } from "@/modules/modules/resolve";
 import { listModuleActivations } from "@/modules/modules/service";
 
 export const metadata = {
@@ -16,7 +18,11 @@ export const metadata = {
 
 export default async function ChaptersPage() {
   const chapters = await listChapters();
-  const modules = await listModuleActivations();
+  const currentChapter =
+    chapters.ok ? chapters.data.find((chapter) => chapter.is_current) : undefined;
+  const modules = await listModuleActivations(currentChapter?.id);
+  const globalModules = modules.ok ? resolveModuleActivations(modules.rows) : null;
+  const chapterModules = modules.ok ? modules.data : null;
   const timeZone = await getProfileTimeZone();
   const today = todayInTimeZone(timeZone);
 
@@ -88,10 +94,12 @@ export default async function ChaptersPage() {
           <CardTitle>Global modules</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!modules.ok ? (
-            <p className="text-sm text-destructive">{modules.message}</p>
+          {!modules.ok || !globalModules ? (
+            <p className="text-sm text-destructive">
+              {modules.ok ? "Could not load modules." : modules.message}
+            </p>
           ) : (
-            modules.data.map((module) => (
+            globalModules.map((module) => (
               <div
                 key={module.moduleKey}
                 className="flex items-center justify-between gap-3 text-sm"
@@ -112,9 +120,35 @@ export default async function ChaptersPage() {
                     name="isActive"
                     value={module.isActive ? "false" : "true"}
                   />
+                  <input type="hidden" name="scope" value="global" />
                 </ActionForm>
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Current chapter modules</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!currentChapter ? (
+            <EmptyState
+              title="No current chapter"
+              description="Chapter-specific module overrides require a current chapter. Activate a planned chapter if needed, then use Make current on an active chapter."
+            />
+          ) : !modules.ok || !chapterModules || !globalModules ? (
+            <p className="text-sm text-destructive">
+              {modules.ok ? "Could not load modules." : modules.message}
+            </p>
+          ) : (
+            <ChapterModuleOverrides
+              chapterId={currentChapter.id}
+              chapterTitle={currentChapter.title}
+              chapterResolved={chapterModules}
+              globalResolved={globalModules}
+            />
           )}
         </CardContent>
       </Card>

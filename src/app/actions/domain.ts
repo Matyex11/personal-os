@@ -64,10 +64,15 @@ export async function closeChapterAction(formData: FormData) {
 }
 
 export async function upsertModuleAction(formData: FormData) {
+  const scopeRaw = String(formData.get("scope") ?? "global");
+  const scope = scopeRaw === "chapter" ? "chapter" : "global";
+  const chapterIdRaw = String(formData.get("chapterId") ?? "").trim();
+  const chapterId = chapterIdRaw || undefined;
   const result = await upsertModuleActivation({
     moduleKey: String(formData.get("moduleKey") ?? ""),
     isActive: formData.get("isActive") === "true",
-    scope: "global",
+    scope,
+    ...(scope === "chapter" ? { chapterId } : {}),
   });
   if (result.ok) revalidatePath("/chapters");
   return result;

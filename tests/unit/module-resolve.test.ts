@@ -121,4 +121,54 @@ describe("resolveModuleActivations", () => {
     expect(projects.isActive).toBe(true);
     expect(projects.source).toBe("global");
   });
+
+  it("resolves different chapters independently", () => {
+    const rows = [
+      row({
+        scope: "global",
+        chapter_id: null,
+        module_key: "habits",
+        is_active: true,
+      }),
+      row({
+        scope: "chapter",
+        chapter_id: chapterA,
+        module_key: "habits",
+        is_active: false,
+      }),
+      row({
+        scope: "chapter",
+        chapter_id: chapterB,
+        module_key: "habits",
+        is_active: true,
+      }),
+    ];
+    const forA = resolveModuleActivations(rows, chapterA).find((m) => m.moduleKey === "habits")!;
+    const forB = resolveModuleActivations(rows, chapterB).find((m) => m.moduleKey === "habits")!;
+    expect(forA.isActive).toBe(false);
+    expect(forA.source).toBe("chapter");
+    expect(forB.isActive).toBe(true);
+    expect(forB.source).toBe("chapter");
+  });
+
+  it("leaves global resolution unchanged when chapter overrides exist", () => {
+    const rows = [
+      row({
+        scope: "global",
+        chapter_id: null,
+        module_key: "tasks",
+        is_active: true,
+      }),
+      row({
+        scope: "chapter",
+        chapter_id: chapterA,
+        module_key: "tasks",
+        is_active: false,
+      }),
+    ];
+    const globalOnly = resolveModuleActivations(rows);
+    const tasks = globalOnly.find((m) => m.moduleKey === "tasks")!;
+    expect(tasks.isActive).toBe(true);
+    expect(tasks.source).toBe("global");
+  });
 });

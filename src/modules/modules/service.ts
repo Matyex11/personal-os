@@ -15,6 +15,23 @@ const upsertSchema = z.object({
   chapterId: uuidSchema.optional(),
 });
 
+type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
+
+async function assertOwnedChapter(
+  supabase: SupabaseServer,
+  userId: string,
+  chapterId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("chapters")
+    .select("id")
+    .eq("id", chapterId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new AppError("unavailable", "Could not verify chapter.");
+  if (!data) throw new AppError("not_found", "Chapter not found.");
+}
+
 export async function listModuleActivations(chapterId?: string) {
   try {
     const user = await requireUser();
@@ -43,6 +60,11 @@ export async function upsertModuleActivation(input: unknown) {
     }
 
     const supabase = await createClient();
+
+    if (parsed.scope === "chapter" && parsed.chapterId) {
+      await assertOwnedChapter(supabase, user.id, parsed.chapterId);
+    }
+
     const payload = {
       user_id: user.id,
       scope: parsed.scope,
@@ -73,6 +95,10 @@ export async function upsertModuleActivation(input: unknown) {
         parsed.scope === "chapter"
           ? await existingQuery.eq("chapter_id", parsed.chapterId!).maybeSingle()
           : await existingQuery.is("chapter_id", null).maybeSingle();
+
+      if (existing.error) {
+        throw new AppError("unavailable", "Could not save module.");
+      }
 
       if (existing.data?.id) {
         const updated = await supabase

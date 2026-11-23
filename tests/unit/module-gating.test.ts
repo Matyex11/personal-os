@@ -163,3 +163,37 @@ describe("activation query failure handling", () => {
     expect(ok.projects.workspaceActive).toBe(false);
   });
 });
+
+describe("navigation and dashboard reflect chapter resolution", () => {
+  it("shows nav and dashboard from chapter override active over global inactive", () => {
+    const resolved: ResolvedModuleActivation[] = MODULE_KEYS.map((moduleKey) => ({
+      moduleKey,
+      isActive: moduleKey === "habits" || moduleKey === "tasks",
+      source: (moduleKey === "habits" || moduleKey === "tasks"
+        ? "chapter"
+        : "default_off") as ResolvedModuleActivation["source"],
+    }));
+    const nav = navVisibilityFromActivations(resolved);
+    const dashboard = dashboardVisibilityFromActivations(resolved);
+    expect(nav.habits).toBe(true);
+    expect(nav.projects).toBe(true);
+    expect(dashboard.todaysHabits).toBe(true);
+    expect(dashboard.attentionTasks).toBe(true);
+  });
+
+  it("hides nav and dashboard when chapter override is inactive over global active", () => {
+    const resolved: ResolvedModuleActivation[] = MODULE_KEYS.map((moduleKey) => ({
+      moduleKey,
+      isActive: false,
+      source: (moduleKey === "habits" || moduleKey === "tasks"
+        ? "chapter"
+        : "default_off") as ResolvedModuleActivation["source"],
+    }));
+    const nav = navVisibilityFromActivations(resolved);
+    const dashboard = dashboardVisibilityFromActivations(resolved);
+    expect(nav.habits).toBe(false);
+    expect(nav.projects).toBe(false);
+    expect(dashboard.todaysHabits).toBe(false);
+    expect(dashboard.attentionTasks).toBe(false);
+  });
+});
