@@ -11,13 +11,18 @@ import {
   getDashboardCurrentChapter,
   getDashboardTodaysHabits,
 } from "@/modules/dashboard/service";
+import { getSessionModuleGating } from "@/modules/modules/gating";
 
 export default async function DashboardPage() {
   const user = await getOptionalUser();
+  const gating = user ? await getSessionModuleGating() : null;
+
+  const showHabits = gating ? gating.dashboard.todaysHabits : true;
+  const showTasks = gating ? gating.dashboard.attentionTasks : true;
 
   const chapter = user ? await getDashboardCurrentChapter() : null;
-  const habits = user ? await getDashboardTodaysHabits() : null;
-  const tasks = user ? await getDashboardAttentionTasks() : null;
+  const habits = user && showHabits ? await getDashboardTodaysHabits() : null;
+  const tasks = user && showTasks ? await getDashboardAttentionTasks() : null;
 
   return (
     <div className="space-y-8">
@@ -39,8 +44,8 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
           <CurrentChapterSection result={chapter} />
-          <AttentionTasksSection result={tasks} />
-          <TodaysHabitsSection result={habits} />
+          {showTasks ? <AttentionTasksSection result={tasks} /> : null}
+          {showHabits ? <TodaysHabitsSection result={habits} /> : null}
         </div>
       )}
     </div>

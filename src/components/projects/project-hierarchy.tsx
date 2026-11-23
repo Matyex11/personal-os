@@ -5,6 +5,7 @@ import {
 } from "@/app/actions/domain";
 import { StatusForm } from "@/components/projects/status-form";
 import { EmptyState } from "@/components/states/empty-state";
+import type { ProjectsWorkspaceGating } from "@/modules/modules/gating";
 import type {
   HierarchyRelationshipConflict,
   ProjectHierarchy,
@@ -33,6 +34,10 @@ const TASK_STATUSES = [
 
 type ProjectHierarchyViewProps = {
   tree: ProjectHierarchy;
+  gating: Pick<
+    ProjectsWorkspaceGating,
+    "canManageProjectStatus" | "canManageMilestoneStatus" | "canManageTaskStatus"
+  >;
 };
 
 function projectLabel(ref: { id: string; title: string } | null): string {
@@ -40,10 +45,20 @@ function projectLabel(ref: { id: string; title: string } | null): string {
   return `${ref.title} (${ref.id.slice(0, 8)}…)`;
 }
 
+function ReadOnlyNote({ label }: { label: string }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {label} module inactive — status is read-only. Record kept for relationship context.
+    </p>
+  );
+}
+
 function TaskRow({
   task,
+  canManage,
 }: {
   task: ProjectHierarchy["inboxTasks"][number];
+  canManage: boolean;
 }) {
   return (
     <li className="space-y-2 border-b border-border/50 py-2 last:border-0">
@@ -56,22 +71,30 @@ function TaskRow({
           ) : null}
         </span>
       </div>
-      <StatusForm
-        action={updateTaskStatusAction}
-        hiddenName="taskId"
-        hiddenValue={task.id}
-        currentStatus={task.status}
-        options={TASK_STATUSES}
-        submitLabel="Set task"
-      />
+      {canManage ? (
+        <StatusForm
+          action={updateTaskStatusAction}
+          hiddenName="taskId"
+          hiddenValue={task.id}
+          currentStatus={task.status}
+          options={TASK_STATUSES}
+          submitLabel="Set task"
+        />
+      ) : (
+        <ReadOnlyNote label="Tasks" />
+      )}
     </li>
   );
 }
 
 function MilestoneBlock({
   milestone,
+  canManageMilestone,
+  canManageTask,
 }: {
   milestone: ProjectHierarchy["standaloneMilestones"][number];
+  canManageMilestone: boolean;
+  canManageTask: boolean;
 }) {
   return (
     <div className="space-y-2 rounded-md border border-border/60 p-3">
@@ -85,20 +108,24 @@ function MilestoneBlock({
           </span>
         </span>
       </div>
-      <StatusForm
-        action={updateMilestoneStatusAction}
-        hiddenName="milestoneId"
-        hiddenValue={milestone.id}
-        currentStatus={milestone.status}
-        options={MILESTONE_STATUSES}
-        submitLabel="Set milestone"
-      />
+      {canManageMilestone ? (
+        <StatusForm
+          action={updateMilestoneStatusAction}
+          hiddenName="milestoneId"
+          hiddenValue={milestone.id}
+          currentStatus={milestone.status}
+          options={MILESTONE_STATUSES}
+          submitLabel="Set milestone"
+        />
+      ) : (
+        <ReadOnlyNote label="Milestones" />
+      )}
       {milestone.tasks.length === 0 ? (
         <p className="text-sm text-muted-foreground">No tasks on this milestone.</p>
       ) : (
         <ul className="ml-2 space-y-1">
           {milestone.tasks.map((task) => (
-            <TaskRow key={task.id} task={task} />
+            <TaskRow key={task.id} task={task} canManage={canManageTask} />
           ))}
         </ul>
       )}
@@ -106,7 +133,13 @@ function MilestoneBlock({
   );
 }
 
-function ConflictItem({ conflict }: { conflict: HierarchyRelationshipConflict }) {
+function ConflictItem({
+  conflict,
+  canManageTask,
+}: {
+  conflict: HierarchyRelationshipConflict;
+  canManageTask: boolean;
+}) {
   const { task, reason, milestone, taskProject, milestoneProject } = conflict;
   const reasonLabel =
     reason === "unresolved_milestone"
@@ -139,19 +172,23 @@ function ConflictItem({ conflict }: { conflict: HierarchyRelationshipConflict })
           <dd className="inline">{projectLabel(milestoneProject)}</dd>
         </div>
       </dl>
-      <StatusForm
-        action={updateTaskStatusAction}
-        hiddenName="taskId"
-        hiddenValue={task.id}
-        currentStatus={task.status}
-        options={TASK_STATUSES}
-        submitLabel="Set task"
-      />
+      {canManageTask ? (
+        <StatusForm
+          action={updateTaskStatusAction}
+          hiddenName="taskId"
+          hiddenValue={task.id}
+          currentStatus={task.status}
+          options={TASK_STATUSES}
+          submitLabel="Set task"
+        />
+      ) : (
+        <ReadOnlyNote label="Tasks" />
+      )}
     </li>
   );
 }
 
-export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
+export function ProjectHierarchyView({ tree, gating }: ProjectHierarchyViewProps) {
   const empty =
     tree.projects.length === 0 &&
     tree.standaloneMilestones.length === 0 &&
@@ -179,7 +216,11 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
           </p>
           <ul className="space-y-3">
             {tree.relationshipConflicts.map((conflict) => (
-              <ConflictItem key={conflict.task.id} conflict={conflict} />
+              <ConflictItem
+                key={conflict.task.id}
+                conflict={conflict}
+                canManageTask={gating.canManageTaskStatus}
+              />
             ))}
           </ul>
         </section>
@@ -200,14 +241,18 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
                 Progress {project.taskDone}/{project.taskTotal} tasks done
               </p>
             </div>
-            <StatusForm
-              action={updateProjectStatusAction}
-              hiddenName="projectId"
-              hiddenValue={project.id}
-              currentStatus={project.status}
-              options={PROJECT_STATUSES}
-              submitLabel="Set project"
-            />
+            {gating.canManageProjectStatus ? (
+              <StatusForm
+                action={updateProjectStatusAction}
+                hiddenName="projectId"
+                hiddenValue={project.id}
+                currentStatus={project.status}
+                options={PROJECT_STATUSES}
+                submitLabel="Set project"
+              />
+            ) : (
+              <ReadOnlyNote label="Projects" />
+            )}
           </div>
 
           {project.milestones.length === 0 && project.directTasks.length === 0 ? (
@@ -218,7 +263,12 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
 
           <div className="space-y-3">
             {project.milestones.map((milestone) => (
-              <MilestoneBlock key={milestone.id} milestone={milestone} />
+              <MilestoneBlock
+                key={milestone.id}
+                milestone={milestone}
+                canManageMilestone={gating.canManageMilestoneStatus}
+                canManageTask={gating.canManageTaskStatus}
+              />
             ))}
           </div>
 
@@ -229,7 +279,11 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
               </h3>
               <ul>
                 {project.directTasks.map((task) => (
-                  <TaskRow key={task.id} task={task} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    canManage={gating.canManageTaskStatus}
+                  />
                 ))}
               </ul>
             </div>
@@ -241,7 +295,12 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Standalone milestones</h2>
           {tree.standaloneMilestones.map((milestone) => (
-            <MilestoneBlock key={milestone.id} milestone={milestone} />
+            <MilestoneBlock
+              key={milestone.id}
+              milestone={milestone}
+              canManageMilestone={gating.canManageMilestoneStatus}
+              canManageTask={gating.canManageTaskStatus}
+            />
           ))}
         </section>
       ) : null}
@@ -256,7 +315,11 @@ export function ProjectHierarchyView({ tree }: ProjectHierarchyViewProps) {
         ) : (
           <ul>
             {tree.inboxTasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                canManage={gating.canManageTaskStatus}
+              />
             ))}
           </ul>
         )}

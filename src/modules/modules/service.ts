@@ -4,19 +4,7 @@ import { AppError, toUserMessage } from "@/lib/errors";
 import type { ModuleActivationRow } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
 import { uuidSchema } from "@/lib/validation/common";
-
-const MODULE_KEYS = [
-  "habits",
-  "tasks",
-  "projects",
-  "milestones",
-  "checkins",
-  "finances",
-  "physical",
-  "behavioural",
-  "reviews",
-  "xnine_tracking",
-] as const;
+import { MODULE_KEYS, resolveModuleActivations } from "@/modules/modules/resolve";
 
 const moduleKeySchema = z.enum(MODULE_KEYS);
 
@@ -38,18 +26,7 @@ export async function listModuleActivations(chapterId?: string) {
     if (error) throw new AppError("unavailable", "Could not load modules.");
 
     const rows = (data ?? []) as ModuleActivationRow[];
-    const resolved = MODULE_KEYS.map((key) => {
-      const chapterOverride = chapterId
-        ? rows.find((row) => row.scope === "chapter" && row.chapter_id === chapterId && row.module_key === key)
-        : undefined;
-      const global = rows.find((row) => row.scope === "global" && row.module_key === key);
-      const chosen = chapterOverride ?? global;
-      return {
-        moduleKey: key,
-        isActive: chosen?.is_active ?? false,
-        source: chosen?.scope ?? ("default_off" as const),
-      };
-    });
+    const resolved = resolveModuleActivations(rows, chapterId);
 
     return { ok: true as const, data: resolved, rows };
   } catch (error) {

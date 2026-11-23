@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { DisabledModuleState } from "@/components/modules/disabled-module-state";
 import { EmptyState } from "@/components/states/empty-state";
 import { ActionForm } from "@/components/forms/action-form";
 import { Field } from "@/components/forms/field";
@@ -20,6 +21,7 @@ import {
   reportHabitAdherence,
 } from "@/modules/habits/service";
 import { selectEligibleHabits } from "@/modules/habits/recovery-targets";
+import { getSessionModuleGating } from "@/modules/modules/gating";
 
 export const metadata = {
   title: "Habits",
@@ -30,6 +32,23 @@ export default async function HabitsPage({
 }: {
   searchParams: Promise<{ habit?: string; from?: string; to?: string }>;
 }) {
+  const gating = await getSessionModuleGating();
+
+  if (gating.status === "ok" && !gating.habitsActive) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Habits"
+          description="Select a habit, choose a date range, log outcomes, and recover missed or partial history without rewriting originals."
+        />
+        <DisabledModuleState
+          title="Habits module is inactive"
+          description="Habits are turned off for the current chapter (or globally when no chapter is current). Activate the habits module from Chapters to use logging, recovery, and reporting. Existing habit data is kept — activation only controls availability."
+        />
+      </div>
+    );
+  }
+
   const params = await searchParams;
   const habitsResult = await listHabits();
   const timeZone = await getProfileTimeZone();

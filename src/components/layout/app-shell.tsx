@@ -1,9 +1,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/layout/app-nav";
+import { ModuleActivationWarning } from "@/components/layout/module-activation-warning";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { getOptionalUser } from "@/lib/auth/require-user";
+import {
+  getSessionModuleGating,
+  PRESERVE_NAV_VISIBILITY,
+} from "@/modules/modules/gating";
 
 type AppShellProps = {
   children: ReactNode;
@@ -11,6 +16,8 @@ type AppShellProps = {
 
 export async function AppShell({ children }: AppShellProps) {
   const user = await getOptionalUser();
+  const gating = user ? await getSessionModuleGating() : null;
+  const visibility = gating?.nav ?? PRESERVE_NAV_VISIBILITY;
 
   return (
     <div className="relative min-h-screen">
@@ -41,7 +48,10 @@ export async function AppShell({ children }: AppShellProps) {
               )}
             </div>
           </div>
-          <AppNav />
+          {gating?.resolutionFailed ? (
+            <ModuleActivationWarning message={gating.message} />
+          ) : null}
+          <AppNav visibility={visibility} />
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">{children}</main>
