@@ -31,6 +31,24 @@ export const createTaskSchema = z.object({
   dueOn: isoDateSchema.optional(),
 });
 
+export const updateProjectStatusSchema = z.object({
+  projectId: uuidSchema,
+  status: projectStatusSchema,
+});
+
+export const updateMilestoneStatusSchema = z.object({
+  milestoneId: uuidSchema,
+  status: milestoneStatusSchema,
+});
+
+export const updateTaskStatusSchema = z.object({
+  taskId: uuidSchema,
+  status: taskStatusSchema,
+});
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type UpdateProjectStatusInput = z.infer<typeof updateProjectStatusSchema>;
+export type UpdateMilestoneStatusInput = z.infer<typeof updateMilestoneStatusSchema>;
+export type UpdateTaskStatusInput = z.infer<typeof updateTaskStatusSchema>;

@@ -17,6 +17,9 @@ import {
   createMilestone,
   createProject,
   createTask,
+  updateMilestoneStatus,
+  updateProjectStatus,
+  updateTaskStatus,
 } from "@/modules/projects/service";
 
 export async function createChapterAction(formData: FormData) {
@@ -140,6 +143,33 @@ export async function createTaskAction(formData: FormData) {
     title: String(formData.get("title") ?? ""),
     projectId: String(formData.get("projectId") ?? "") || undefined,
     milestoneId: String(formData.get("milestoneId") ?? "") || undefined,
+  });
+  if (result.ok) revalidatePath("/projects");
+  return result;
+}
+
+export async function updateProjectStatusAction(formData: FormData) {
+  const result = await updateProjectStatus({
+    projectId: String(formData.get("projectId") ?? ""),
+    status: String(formData.get("status") ?? ""),
+  });
+  if (result.ok) revalidatePath("/projects");
+  return result;
+}
+
+export async function updateMilestoneStatusAction(formData: FormData) {
+  const result = await updateMilestoneStatus({
+    milestoneId: String(formData.get("milestoneId") ?? ""),
+    status: String(formData.get("status") ?? ""),
+  });
+  if (result.ok) revalidatePath("/projects");
+  return result;
+}
+
+export async function updateTaskStatusAction(formData: FormData) {
+  const result = await updateTaskStatus({
+    taskId: String(formData.get("taskId") ?? ""),
+    status: String(formData.get("status") ?? ""),
   });
   if (result.ok) revalidatePath("/projects");
   return result;
