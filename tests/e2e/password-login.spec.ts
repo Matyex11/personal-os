@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * Live credential cases require shell env. Missing credentials → skip (chromium
@@ -12,12 +12,20 @@ function e2eCredentials(): { email: string; password: string } | null {
   return { email, password };
 }
 
+async function gotoHydratedLogin(page: Page) {
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  // SSR heading is visible before hydration; wait for client handlers.
+  await expect(page.locator('form[data-auth-ready="true"]')).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 test.describe("password login", () => {
   test("login form defaults to email and password with magic-link fallback", async ({
     page,
   }) => {
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+    await gotoHydratedLogin(page);
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -36,12 +44,15 @@ test.describe("password login", () => {
       "Blocked: set E2E_USER_EMAIL and E2E_USER_PASSWORD (do not invent credentials).",
     );
 
-    await page.goto("/login");
+    await gotoHydratedLogin(page);
+    const loginForm = page.locator('form[data-auth-ready="true"]');
     await page.getByLabel("Email").fill(credentials!.email);
     await page.getByLabel("Password").fill(`${credentials!.password}-wrong`);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page.getByRole("alert")).toContainText(/could not sign in/i);
+    // Scope to the login form — page-level getByRole("alert") also matches
+    // Next.js #__next-route-announcer__ and can resolve ambiguously.
+    await expect(loginForm.getByRole("alert")).toContainText(/could not sign in/i);
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -52,12 +63,14 @@ test.describe("password login", () => {
       "Blocked: set E2E_USER_EMAIL and E2E_USER_PASSWORD (do not invent credentials).",
     );
 
-    await page.goto("/login");
+    test.setTimeout(60_000);
+    await gotoHydratedLogin(page);
     await page.getByLabel("Email").fill(credentials!.email);
     await page.getByLabel("Password").fill(credentials!.password);
+    await expect(page.getByLabel("Email")).toHaveValue(credentials!.email);
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
-    await expect(page.getByRole("link", { name: "Personal OS" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   });
 });

@@ -3,14 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/components/auth/login-form";
 
-const replace = vi.fn();
-const refresh = vi.fn();
 const signInWithPassword = vi.fn();
 const signInWithOtp = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace, refresh }),
-}));
+const locationAssign = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -21,16 +16,30 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+async function waitForAuthReady() {
+  await vi.waitFor(() => {
+    expect(document.querySelector("form[data-auth-ready='true']")).not.toBeNull();
+  });
+}
+
 describe("LoginForm", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   beforeEach(() => {
-    replace.mockReset();
-    refresh.mockReset();
     signInWithPassword.mockReset();
     signInWithOtp.mockReset();
+    locationAssign.mockReset();
+    vi.stubGlobal(
+      "location",
+      Object.assign(new URL("http://127.0.0.1:3000/login"), {
+        assign: locationAssign,
+        replace: vi.fn(),
+        reload: vi.fn(),
+      }),
+    );
   });
 
   it("signs in with email and password by default", async () => {
@@ -38,6 +47,7 @@ describe("LoginForm", () => {
     signInWithPassword.mockResolvedValue({ error: null });
 
     render(<LoginForm nextPath="/settings" />);
+    await waitForAuthReady();
 
     await user.type(screen.getByLabelText("Email"), "  ops@example.com  ");
     await user.type(screen.getByLabelText("Password"), "secret12");
@@ -49,7 +59,7 @@ describe("LoginForm", () => {
         password: "secret12",
       });
     });
-    expect(replace).toHaveBeenCalledWith("/settings");
+    expect(locationAssign).toHaveBeenCalledWith("/settings");
     expect(signInWithOtp).not.toHaveBeenCalled();
   });
 
@@ -58,6 +68,7 @@ describe("LoginForm", () => {
     signInWithOtp.mockResolvedValue({ error: null });
 
     render(<LoginForm nextPath="/habits" />);
+    await waitForAuthReady();
 
     await user.click(screen.getByRole("button", { name: "Use magic link instead" }));
     await user.type(screen.getByLabelText("Email"), "ops@example.com");
@@ -75,5 +86,6 @@ describe("LoginForm", () => {
     expect(call.options.shouldCreateUser).toBe(false);
     expect(call.options.emailRedirectTo).toContain("/auth/callback?next=%2Fhabits");
     expect(signInWithPassword).not.toHaveBeenCalled();
+    expect(locationAssign).not.toHaveBeenCalled();
   });
 });

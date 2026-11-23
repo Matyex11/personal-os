@@ -83,34 +83,75 @@ function assertAuthStorageStatePresent(): void {
   }
 }
 
+/** Sanitized Auth token probe — status/grant only; never body/tokens. */
+type TokenProbe = { status: number; grant: string | null };
+
 setup("password login writes gitignored storageState", async ({ page }) => {
+  // Expect URL wait up to 30s plus hydration + diagnostics headroom.
+  setup.setTimeout(60_000);
+
   const { email, password } = requireE2ECredentials();
 
   mkdirSync(path.dirname(AUTH_STORAGE_STATE_PATH), { recursive: true });
 
+  const tokenHits: TokenProbe[] = [];
+  page.on("response", (response) => {
+    const url = response.url();
+    if (!url.includes("/auth/v1/token")) return;
+    let grant: string | null = null;
+    try {
+      grant = new URL(url).searchParams.get("grant_type");
+    } catch {
+      grant = null;
+    }
+    tokenHits.push({ status: response.status(), grant });
+  });
+
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  // Wait for client hydration — SSR heading alone is not enough (native GET remount race).
+  await expect(page.locator('form[data-auth-ready="true"]')).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
+  await expect(page.getByLabel("Email")).toHaveValue(email);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  const loginAlert = page.getByRole("alert");
+  const loginForm = page.locator('form[data-auth-ready="true"]');
+  const loginAlert = loginForm.getByRole("alert");
   try {
     await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
   } catch {
     const alertText = ((await loginAlert.textContent().catch(() => null)) ?? "").trim();
+    const emailStillFilled = await page
+      .getByLabel("Email")
+      .inputValue()
+      .then((value) => value.length > 0)
+      .catch(() => false);
+    const tokenSummary =
+      tokenHits.length === 0
+        ? "No /auth/v1/token response observed."
+        : `Auth token statuses (sanitized): ${tokenHits
+            .map((hit) => `${hit.grant ?? "unknown"}=${hit.status}`)
+            .join(", ")}.`;
+
     throw new Error(
       [
         "Password login failed during auth preflight.",
         alertText ? `UI error: ${alertText}.` : "Still on /login with no alert text.",
+        emailStillFilled
+          ? "Email field still filled after submit."
+          : "Email field empty after submit (possible pre-hydration native form remount).",
+        tokenSummary,
         "Verify E2E_USER_EMAIL/PASSWORD for an existing personal-os-dev user with a password.",
         "Do not invent credentials, enable public signup, or bypass Auth.",
       ].join(" "),
     );
   }
 
-  await expect(page.getByRole("link", { name: "Personal OS" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 
   await page.context().storageState({ path: AUTH_STORAGE_STATE_PATH });
   assertAuthStorageStatePresent();

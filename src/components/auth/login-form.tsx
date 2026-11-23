@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/forms/field";
 import { Input } from "@/components/ui/input";
@@ -14,14 +13,23 @@ type LoginFormProps = {
   nextPath: string;
 };
 
+/**
+ * Mark the form hydrated for Playwright. Attribute is absent in SSR HTML;
+ * the ref sets data-auth-ready="true" after client handlers attach.
+ */
+function markAuthFormReady(node: HTMLFormElement | null) {
+  if (node) {
+    node.dataset.authReady = "true";
+  }
+}
+
 export function LoginForm({ nextPath }: LoginFormProps) {
-  const router = useRouter();
   const [mode, setMode] = useState<LoginMode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
 
   function switchMode(next: LoginMode) {
     setMode(next);
@@ -29,20 +37,22 @@ export function LoginForm({ nextPath }: LoginFormProps) {
     setError(null);
   }
 
-  function onSubmit(event: React.FormEvent) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setError(null);
 
-    startTransition(async () => {
-      const supabase = createClient();
-      const safeNext = safeNextPath(nextPath);
-      const normalizedEmail = email.trim();
+    const safeNext = safeNextPath(nextPath);
+    const normalizedEmail = email.trim();
 
-      if (!normalizedEmail) {
-        setError("Enter an email address.");
-        return;
-      }
+    if (!normalizedEmail) {
+      setError("Enter an email address.");
+      return;
+    }
+
+    setPending(true);
+    try {
+      const supabase = createClient();
 
       if (mode === "password") {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -55,8 +65,8 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           return;
         }
 
-        router.replace(safeNext);
-        router.refresh();
+        // Full navigation so proxy/SSR see cookies written by the browser client.
+        window.location.assign(safeNext);
         return;
       }
 
@@ -75,14 +85,29 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         return;
       }
       setMessage("Magic link sent. Check your email to continue.");
-    });
+    } catch {
+      setError(
+        mode === "password"
+          ? "Could not sign in. Check email and password, then try again."
+          : "Could not send magic link. Check the address and try again.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card/80 p-5">
+    <form
+      ref={markAuthFormReady}
+      method="post"
+      action="/login"
+      onSubmit={onSubmit}
+      className="space-y-4 rounded-lg border border-border bg-card/80 p-5"
+    >
       <Field id="email" label="Email" error={error ?? undefined}>
         <Input
           id="email"
+          name="email"
           type="email"
           autoComplete="email"
           required
@@ -96,6 +121,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         <Field id="password" label="Password">
           <Input
             id="password"
+            name="password"
             type="password"
             autoComplete="current-password"
             required
