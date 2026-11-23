@@ -2,12 +2,25 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
 import { getOptionalUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { DEFAULT_TIME_ZONE } from "@/lib/dates/calendar";
+import type { ProfileRow } from "@/lib/db/types";
+import {
+  DEFAULT_BASE_CURRENCY,
+  listIanaTimeZones,
+  listIsoCurrencies,
+} from "@/modules/profile/schemas";
 
 export const metadata = {
   title: "Settings",
 };
+
+function withCurrentOption(options: readonly string[], current: string): string[] {
+  if (options.includes(current)) return [...options];
+  return [current, ...options];
+}
 
 export default async function SettingsPage() {
   const user = await getOptionalUser();
@@ -15,6 +28,13 @@ export default async function SettingsPage() {
   const { data: profile } = user
     ? await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
     : { data: null };
+
+  const row = profile as ProfileRow | null;
+  const displayName = row?.display_name ?? "";
+  const timezone = row?.timezone ?? DEFAULT_TIME_ZONE;
+  const baseCurrency = row?.base_currency ?? DEFAULT_BASE_CURRENCY;
+  const timeZones = withCurrentOption(listIanaTimeZones(), timezone);
+  const currencies = withCurrentOption(listIsoCurrencies(), baseCurrency);
 
   return (
     <div>
@@ -53,22 +73,35 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Profile defaults</CardTitle>
-            <CardDescription>From profiles table when present.</CardDescription>
+            <CardTitle>Profile settings</CardTitle>
+            <CardDescription>
+              Display name, timezone, and base currency for your account.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Timezone</span>
-              <span className="font-medium">{profile?.timezone ?? "Europe/Bucharest"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Base currency</span>
-              <span className="font-medium">{profile?.base_currency ?? "RON"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Auth</span>
-              <span className="font-medium">Email magic link</span>
-            </div>
+          <CardContent>
+            {user ? (
+              <ProfileSettingsForm
+                displayName={displayName}
+                timezone={timezone}
+                baseCurrency={baseCurrency}
+                timeZones={timeZones}
+                currencies={currencies}
+              />
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  Sign in to edit profile settings.
+                </p>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">Timezone</span>
+                  <span className="font-medium">{timezone}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">Base currency</span>
+                  <span className="font-medium">{baseCurrency}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

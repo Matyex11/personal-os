@@ -21,6 +21,7 @@ import {
   updateProjectStatus,
   updateTaskStatus,
 } from "@/modules/projects/service";
+import { updateProfileSettings } from "@/modules/profile/service";
 
 export async function createChapterAction(formData: FormData) {
   const status = String(formData.get("status") ?? "active");
@@ -172,5 +173,15 @@ export async function updateTaskStatusAction(formData: FormData) {
     status: String(formData.get("status") ?? ""),
   });
   if (result.ok) revalidatePath("/projects");
+  return result;
+}
+
+export async function updateProfileSettingsAction(formData: FormData) {
+  const result = await updateProfileSettings({
+    displayName: String(formData.get("displayName") ?? ""),
+    timezone: String(formData.get("timezone") ?? ""),
+    baseCurrency: String(formData.get("baseCurrency") ?? ""),
+  });
+  if (result.ok) revalidatePath("/settings");
   return result;
 }
