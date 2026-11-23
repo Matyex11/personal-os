@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { AppError, toUserMessage } from "@/lib/errors";
 import type { HabitLogRow, HabitRow, ProfileRow } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
-import { uuidSchema, nonEmptyStringSchema, isoDateSchema } from "@/lib/validation/common";
+import { nonEmptyStringSchema } from "@/lib/validation/common";
 import { habitCadenceSchema, generateScheduledDates } from "@/modules/habits/cadence";
 import { createHabitSchema, logHabitSchema } from "@/modules/habits/schemas";
 import { validateHabitRecovery } from "@/modules/habits/recovery";
@@ -15,7 +15,12 @@ import {
   RECOVERY_TARGETS_PAGE_SIZE,
   type RecoveryTargetsPage,
 } from "@/modules/habits/recovery-eligibility";
+import {
+  createHabitReportRangeSchema,
+  firstZodIssueMessage,
+} from "@/modules/habits/report-range";
 import { summarizeAdherence } from "@/modules/habits/reporting";
+import { DEFAULT_TIME_ZONE, todayInTimeZone } from "@/lib/dates/calendar";
 import type { HabitLog } from "@/types/domain";
 
 export async function listHabits() {
@@ -169,20 +174,51 @@ export async function logHabit(input: unknown) {
   }
 }
 
-const reportSchema = z.object({
-  habitId: uuidSchema,
-  fromOn: isoDateSchema,
-  toOn: isoDateSchema,
-});
+/**
+ * Profile IANA time zone for calendar “today” / reporting windows.
+ * Falls back to Europe/Bucharest when unsigned or missing.
+ */
+export async function getProfileTimeZone(): Promise<string> {
+  try {
+    const user = await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", user.id)
+      .maybeSingle();
+    return (data as ProfileRow | null)?.timezone ?? DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+}
 
 /**
  * Single-habit adherence report for the authenticated user only.
+ * Range validated server-side against profile-TZ today (max 366 days, no future).
  */
 export async function reportHabitAdherence(input: unknown) {
   try {
     const user = await requireUser();
-    const parsed = reportSchema.parse(input);
     const supabase = await createClient();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", user.id)
+      .maybeSingle();
+    const timeZone = (profile as ProfileRow | null)?.timezone ?? DEFAULT_TIME_ZONE;
+    const todayOn = todayInTimeZone(timeZone);
+
+    let parsed: { habitId: string; fromOn: string; toOn: string };
+    try {
+      parsed = createHabitReportRangeSchema(todayOn).parse(input);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new AppError("validation", firstZodIssueMessage(error));
+      }
+      throw error;
+    }
 
     const { data: habit, error: habitError } = await supabase
       .from("habits")
@@ -194,13 +230,6 @@ export async function reportHabitAdherence(input: unknown) {
       throw new AppError("not_found", "Habit not found.");
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("timezone")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const timeZone = (profile as ProfileRow | null)?.timezone ?? "Europe/Bucharest";
     const cadence = habitCadenceSchema.parse(habit.cadence);
     const scheduledDates = generateScheduledDates(cadence, {
       fromOn: parsed.fromOn,
@@ -231,6 +260,10 @@ export async function reportHabitAdherence(input: unknown) {
         habit: habit as HabitRow,
         scheduledDates,
         summary,
+        fromOn: parsed.fromOn,
+        toOn: parsed.toOn,
+        todayOn,
+        timeZone,
       },
     };
   } catch (error) {

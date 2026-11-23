@@ -11,9 +11,17 @@ export type HabitOption = {
 type HabitSelectorProps = {
   habits: HabitOption[];
   selectedHabitId: string;
+  /** Preserve reporting window across habit switches. */
+  fromOn?: string;
+  toOn?: string;
 };
 
-export function HabitSelector({ habits, selectedHabitId }: HabitSelectorProps) {
+export function HabitSelector({
+  habits,
+  selectedHabitId,
+  fromOn,
+  toOn,
+}: HabitSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -26,6 +34,8 @@ export function HabitSelector({ habits, selectedHabitId }: HabitSelectorProps) {
         onChange={(event) => {
           const next = new URLSearchParams();
           next.set("habit", event.target.value);
+          if (fromOn) next.set("from", fromOn);
+          if (toOn) next.set("to", toOn);
           router.push(`${pathname}?${next.toString()}`);
         }}
         aria-label="Selected habit"

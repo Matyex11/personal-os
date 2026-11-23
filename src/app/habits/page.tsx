@@ -4,11 +4,16 @@ import { ActionForm } from "@/components/forms/action-form";
 import { Field } from "@/components/forms/field";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HabitAdherenceReport } from "@/components/habits/habit-adherence-report";
 import { HabitLogForm } from "@/components/habits/habit-log-form";
 import { HabitLogHistory } from "@/components/habits/habit-log-history";
+import { HabitReportRangeForm } from "@/components/habits/habit-report-range-form";
 import { HabitSelector } from "@/components/habits/habit-selector";
 import { createHabitAction } from "@/app/actions/domain";
+import { monthStartOn, todayInTimeZone } from "@/lib/dates/calendar";
+import { resolveHabitReportRangeQuery } from "@/modules/habits/report-range";
 import {
+  getProfileTimeZone,
   listHabitLogs,
   listHabitRecoveryTargets,
   listHabits,
@@ -23,12 +28,19 @@ export const metadata = {
 export default async function HabitsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ habit?: string }>;
+  searchParams: Promise<{ habit?: string; from?: string; to?: string }>;
 }) {
   const params = await searchParams;
   const habitsResult = await listHabits();
-  const today = new Date().toISOString().slice(0, 10);
-  const monthStart = `${today.slice(0, 8)}01`;
+  const timeZone = await getProfileTimeZone();
+  const today = todayInTimeZone(timeZone);
+  const defaultFrom = monthStartOn(today);
+  const range = resolveHabitReportRangeQuery({
+    from: params.from,
+    to: params.to,
+    todayOn: today,
+    defaultFromOn: defaultFrom,
+  });
 
   const eligible =
     habitsResult.ok ? selectEligibleHabits(habitsResult.data) : [];
@@ -39,19 +51,24 @@ export default async function HabitsPage({
   const recoveryTargets = selectedHabit
     ? await listHabitRecoveryTargets({ habitId: selectedHabit.id })
     : null;
-  const report = selectedHabit
-    ? await reportHabitAdherence({
-        habitId: selectedHabit.id,
-        fromOn: monthStart,
-        toOn: today,
-      })
-    : null;
+  // Never call reporting with an invalid explicit/default-composed range.
+  const report =
+    selectedHabit && range.ok
+      ? await reportHabitAdherence({
+          habitId: selectedHabit.id,
+          fromOn: range.fromOn,
+          toOn: range.toOn,
+        })
+      : null;
+
+  const rangeFrom = range.formFrom;
+  const rangeTo = range.formTo;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Habits"
-        description="Select a habit, log any status, and link recovery to missed or partial history without rewriting originals."
+        description="Select a habit, choose a date range, log outcomes, and recover missed or partial history without rewriting originals."
       />
 
       {!habitsResult.ok ? (
@@ -75,11 +92,19 @@ export default async function HabitsPage({
                   is_active: habit.is_active,
                 }))}
                 selectedHabitId={selectedHabit!.id}
+                fromOn={rangeFrom}
+                toOn={rangeTo}
               />
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {eligible.map((habit) => (
                   <li key={habit.id}>
-                    <span className={habit.id === selectedHabit!.id ? "font-medium text-foreground" : ""}>
+                    <span
+                      className={
+                        habit.id === selectedHabit!.id
+                          ? "font-medium text-foreground"
+                          : ""
+                      }
+                    >
                       {habit.name}
                     </span>
                     {" · "}
@@ -91,39 +116,60 @@ export default async function HabitsPage({
             </CardContent>
           </Card>
 
-          {report?.ok ? (
+          {!range.ok ? (
             <Card>
               <CardHeader>
-                <CardTitle>Adherence · {report.data.habit.name}</CardTitle>
+                <CardTitle>Reporting</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>
-                  Scheduled {report.data.summary.scheduledOccurrences} · completed{" "}
-                  {report.data.summary.completedCount} · partial {report.data.summary.partialCount} ·
-                  missed {report.data.summary.missedCount} · unlogged{" "}
-                  {report.data.summary.unloggedCount}
-                </p>
-                <p>
-                  Target attainment:{" "}
-                  {report.data.summary.targetAttainment === null
-                    ? "n/a"
-                    : `${Math.round(report.data.summary.targetAttainment * 100)}%`}
-                </p>
-                <p>
-                  Minimum adherence:{" "}
-                  {report.data.summary.minimumAdherence === null
-                    ? "n/a"
-                    : `${Math.round(report.data.summary.minimumAdherence * 100)}%`}
-                </p>
-                {report.data.summary.unloggedDates.length > 0 ? (
-                  <p className="text-muted-foreground">
-                    Unlogged: {report.data.summary.unloggedDates.join(", ")}
-                  </p>
+              <CardContent className="space-y-4">
+                <EmptyState
+                  title="Invalid date range"
+                  description={`${range.message} Submitted: ${range.formFrom} → ${range.formTo}.`}
+                />
+                {selectedHabit ? (
+                  <HabitReportRangeForm
+                    habitId={selectedHabit.id}
+                    fromOn={range.formFrom}
+                    toOn={range.formTo}
+                    maxOn={today}
+                  />
                 ) : null}
               </CardContent>
             </Card>
+          ) : report?.ok ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Reporting</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HabitAdherenceReport
+                  habitId={selectedHabit!.id}
+                  habitName={report.data.habit.name}
+                  fromOn={report.data.fromOn}
+                  toOn={report.data.toOn}
+                  todayOn={report.data.todayOn}
+                  timeZone={report.data.timeZone}
+                  summary={report.data.summary}
+                />
+              </CardContent>
+            </Card>
           ) : report && !report.ok ? (
-            <EmptyState title="Adherence unavailable" description={report.message} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Reporting</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <EmptyState title="Adherence unavailable" description={report.message} />
+                {selectedHabit ? (
+                  <HabitReportRangeForm
+                    habitId={selectedHabit.id}
+                    fromOn={range.formFrom}
+                    toOn={range.formTo}
+                    maxOn={today}
+                  />
+                ) : null}
+              </CardContent>
+            </Card>
           ) : null}
 
           {selectedHabit && logs?.ok ? (
