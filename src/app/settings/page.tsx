@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { PasswordSettingsForm } from "@/components/settings/password-settings-form";
 import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
 import { getOptionalUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
@@ -101,6 +102,25 @@ export default async function SettingsPage() {
                   <span className="font-medium">{baseCurrency}</span>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>
+              Set or change the password for email sign-in. Uses the signed-in session
+              via updateUser — no public recovery or signup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {user ? (
+              <PasswordSettingsForm />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Sign in to set or change your password.
+              </p>
             )}
           </CardContent>
         </Card>

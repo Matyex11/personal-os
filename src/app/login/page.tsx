@@ -17,11 +17,11 @@ export default async function LoginPage({
     <div className="mx-auto max-w-md">
       <PageHeader
         title="Sign in"
-        description="Email magic link via Personal OS DEV Supabase Auth. No password stored in this app. Existing accounts only — no public signup."
+        description="Email and password via Personal OS DEV Supabase Auth, with magic-link fallback. Existing accounts only — no public signup or recovery."
       />
       {params.error ? (
         <p className="mb-4 text-sm text-destructive" role="alert">
-          Sign-in could not be completed. Request a new magic link.
+          Sign-in could not be completed. Try email and password, or request a new magic link.
         </p>
       ) : null}
       <LoginForm nextPath={safeNextPath(params.next)} />

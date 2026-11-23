@@ -6,6 +6,9 @@ const nodeBinary = process.execPath;
 const nodeDir = path.dirname(nodeBinary);
 const pathWithLauncherNode = `${nodeDir}${path.delimiter}${process.env.PATH ?? ""}`;
 
+/** Gitignored session file for authenticated e2e (never commit). */
+const authStorageState = path.join(__dirname, "tests", "e2e", ".auth", "user.json");
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -30,7 +33,21 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: [/auth\.preflight\.ts$/, /[/\\]authenticated[/\\]/],
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "auth-preflight",
+      testMatch: /auth\.preflight\.ts$/,
+    },
+    {
+      name: "chromium-authenticated",
+      testMatch: /[/\\]authenticated[/\\].*\.spec\.ts$/,
+      dependencies: ["auth-preflight"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStorageState,
+      },
     },
   ],
 });

@@ -5,7 +5,8 @@ test.describe("auth gate and public shell", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Send magic link" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use magic link instead" })).toBeVisible();
   });
 
   test("login page exposes Personal OS brand", async ({ page }) => {
