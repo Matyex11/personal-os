@@ -32,6 +32,17 @@ export function monthStartOn(isoDate: string): string {
   return `${isoDate.slice(0, 8)}01`;
 }
 
+/** Add (or subtract) civil calendar days to a YYYY-MM-DD date (UTC date arithmetic). */
+export function addCalendarDays(isoDate: string, days: number): string {
+  isoDateSchema.parse(isoDate);
+  const [y, m, d] = isoDate.split("-").map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 /**
  * Inclusive day count between two valid ISO dates (UTC calendar arithmetic).
  * Requires fromOn <= toOn.

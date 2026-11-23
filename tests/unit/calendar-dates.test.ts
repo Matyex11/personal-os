@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addCalendarDays,
   inclusiveDaySpan,
   monthStartOn,
   todayInTimeZone,
@@ -37,5 +38,13 @@ describe("inclusiveDaySpan", () => {
 
   it("supports leap-year 366-day windows", () => {
     expect(inclusiveDaySpan("2024-01-01", "2024-12-31")).toBe(366);
+  });
+});
+
+describe("addCalendarDays", () => {
+  it("adds calendar days across month boundaries", () => {
+    expect(addCalendarDays("2026-11-23", 7)).toBe("2026-11-30");
+    expect(addCalendarDays("2026-11-23", -3)).toBe("2026-11-20");
+    expect(addCalendarDays("2026-01-31", 1)).toBe("2026-02-01");
   });
 });
