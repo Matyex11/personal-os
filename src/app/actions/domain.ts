@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { closeChapter, createChapter } from "@/modules/chapters/service";
+import {
+  activateChapter,
+  closeChapter,
+  createChapter,
+  makeChapterCurrent,
+} from "@/modules/chapters/service";
 import {
   createHabit,
   listHabitRecoveryTargets,
@@ -15,12 +20,31 @@ import {
 } from "@/modules/projects/service";
 
 export async function createChapterAction(formData: FormData) {
+  const status = String(formData.get("status") ?? "active");
+  // Never allow planned + is_current even if the checkbox was tampered.
+  const isCurrent = status === "active" && formData.get("isCurrent") === "on";
   const result = await createChapter({
     title: String(formData.get("title") ?? ""),
     summary: String(formData.get("summary") ?? "") || undefined,
-    status: String(formData.get("status") ?? "active"),
+    status,
     startedOn: String(formData.get("startedOn") ?? ""),
-    isCurrent: formData.get("isCurrent") === "on",
+    isCurrent,
+  });
+  if (result.ok) revalidatePath("/chapters");
+  return result;
+}
+
+export async function activateChapterAction(formData: FormData) {
+  const result = await activateChapter({
+    chapterId: String(formData.get("chapterId") ?? ""),
+  });
+  if (result.ok) revalidatePath("/chapters");
+  return result;
+}
+
+export async function makeChapterCurrentAction(formData: FormData) {
+  const result = await makeChapterCurrent({
+    chapterId: String(formData.get("chapterId") ?? ""),
   });
   if (result.ok) revalidatePath("/chapters");
   return result;

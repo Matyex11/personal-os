@@ -1,15 +1,13 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { ActionForm } from "@/components/forms/action-form";
-import { Field } from "@/components/forms/field";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  closeChapterAction,
-  createChapterAction,
-  upsertModuleAction,
-} from "@/app/actions/domain";
+import { ChapterCardActions } from "@/components/chapters/chapter-card-actions";
+import { ChapterCreateForm } from "@/components/chapters/chapter-create-form";
+import { upsertModuleAction } from "@/app/actions/domain";
+import { todayInTimeZone } from "@/lib/dates/calendar";
 import { listChapters } from "@/modules/chapters/service";
+import { getProfileTimeZone } from "@/modules/habits/service";
 import { listModuleActivations } from "@/modules/modules/service";
 
 export const metadata = {
@@ -19,51 +17,60 @@ export const metadata = {
 export default async function ChaptersPage() {
   const chapters = await listChapters();
   const modules = await listModuleActivations();
-  const today = new Date().toISOString().slice(0, 10);
+  const timeZone = await getProfileTimeZone();
+  const today = todayInTimeZone(timeZone);
+
+  const hasCurrent =
+    chapters.ok && chapters.data.some((chapter) => chapter.is_current);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Chapters"
-        description="Named life periods with explicit lifecycle. Module activations resolve chapter override → global → off."
+        description="Named life periods: planned → active → closed. One current active chapter at a time."
       />
 
       {!chapters.ok ? (
-        <EmptyState
-          title="Chapters unavailable"
-          description={chapters.message}
-        />
+        <EmptyState title="Chapters unavailable" description={chapters.message} />
       ) : chapters.data.length === 0 ? (
         <EmptyState
           title="No chapters yet"
-          description="Create an active chapter to frame habits and projects. Tables must exist on DEV after L3 migration apply."
+          description="Create a planned or active chapter to frame habits and projects."
         />
       ) : (
-        <div className="grid gap-3">
-          {chapters.data.map((chapter) => (
-            <Card key={chapter.id}>
-              <CardHeader>
-                <CardTitle>
-                  {chapter.title}
-                  {chapter.is_current ? " · current" : ""}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <p>
-                  {chapter.status} · {chapter.started_on}
-                  {chapter.ended_on ? ` → ${chapter.ended_on}` : ""}
-                </p>
-                {chapter.status !== "closed" ? (
-                  <ActionForm action={closeChapterAction} submitLabel="Close chapter">
-                    <input type="hidden" name="chapterId" value={chapter.id} />
-                    <Field id={`ended-${chapter.id}`} label="Ended on">
-                      <Input id={`ended-${chapter.id}`} name="endedOn" type="date" defaultValue={today} required />
-                    </Field>
-                  </ActionForm>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-4">
+          {!hasCurrent ? (
+            <EmptyState
+              title="No current chapter"
+              description="There is no current chapter right now. Activate a planned chapter if needed, then use Make current on an active chapter. Closing the current chapter leaves none selected automatically."
+            />
+          ) : null}
+
+          <div className="grid gap-3">
+            {chapters.data.map((chapter) => (
+              <Card key={chapter.id}>
+                <CardHeader>
+                  <CardTitle>
+                    {chapter.title}
+                    {chapter.is_current ? " · current" : ""}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">{chapter.status}</span>
+                    {" · "}
+                    {chapter.started_on}
+                    {chapter.ended_on ? ` → ${chapter.ended_on}` : ""}
+                    {chapter.is_current ? " · current" : ""}
+                  </p>
+                  {chapter.summary ? (
+                    <p className="text-muted-foreground">{chapter.summary}</p>
+                  ) : null}
+                  <ChapterCardActions chapter={chapter} today={today} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -72,29 +79,7 @@ export default async function ChaptersPage() {
           <CardTitle>New chapter</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActionForm action={createChapterAction} submitLabel="Create chapter" className="grid gap-3 sm:grid-cols-2">
-            <Field id="title" label="Title">
-              <Input id="title" name="title" required />
-            </Field>
-            <Field id="startedOn" label="Started on">
-              <Input id="startedOn" name="startedOn" type="date" defaultValue={today} required />
-            </Field>
-            <Field id="status" label="Status">
-              <select
-                id="status"
-                name="status"
-                defaultValue="active"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="planned">planned</option>
-                <option value="active">active</option>
-              </select>
-            </Field>
-            <label className="flex items-center gap-2 self-end text-sm">
-              <input type="checkbox" name="isCurrent" defaultChecked />
-              Mark current
-            </label>
-          </ActionForm>
+          <ChapterCreateForm today={today} />
         </CardContent>
       </Card>
 
@@ -107,7 +92,10 @@ export default async function ChaptersPage() {
             <p className="text-sm text-destructive">{modules.message}</p>
           ) : (
             modules.data.map((module) => (
-              <div key={module.moduleKey} className="flex items-center justify-between gap-3 text-sm">
+              <div
+                key={module.moduleKey}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
                 <span>
                   {module.moduleKey}{" "}
                   <span className="text-muted-foreground">
@@ -119,7 +107,11 @@ export default async function ChaptersPage() {
                   submitLabel={module.isActive ? "Disable" : "Enable"}
                 >
                   <input type="hidden" name="moduleKey" value={module.moduleKey} />
-                  <input type="hidden" name="isActive" value={module.isActive ? "false" : "true"} />
+                  <input
+                    type="hidden"
+                    name="isActive"
+                    value={module.isActive ? "false" : "true"}
+                  />
                 </ActionForm>
               </div>
             ))
