@@ -32,15 +32,16 @@ see `docs/DECISIONS.md` and `docs/AUTH_DEV_SETUP.md`).
 
 ---
 
-## Phase 1B — DEV schema + app vertical slice *(in progress — acceptance pending)*
+## Phase 1B — DEV schema + app vertical slice *(Complete — Accepted with explicit limitations)*
 
 **DEV target:** `personal-os-dev` (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`).
 **Schema:** migration `20261122190000` applied on DEV; SQL integrity scripts passed (human).
-**App:** SSR auth + domain services + usable vertical-slice UI exist. App-layer plan
-items **P0.1–P0.4**, **P1.1–P1.2**, **P2.1–P2.2** are implemented; **P2.3**
-authenticated Playwright is implemented and pushed (`51a4a03`); **P2.4**
-documentation cleanup is in progress. **Phase 1B is not fully complete** until
-final human acceptance review.
+**App:** SSR auth + domain services + usable vertical-slice UI. App-layer plan
+items **P0.1–P0.4**, **P1.1–P1.2**, **P2.1–P2.4** are **Done**.
+**Human acceptance:** **2026-11-24** — **ACCEPT WITH EXPLICIT LIMITATIONS**
+(Project store report
+`docs/phase-1b-final-acceptance.md`; closure note
+`docs/phase-1b-acceptance-closure.md`). **Phase 2 is authorized to begin.**
 
 **Still forbidden without L3:** further hosted schema apply, Docker, deploy, PROD,
 Auth setting changes without checklist, service-role to agents.
@@ -63,8 +64,38 @@ App-layer audit/plan lives in the Project agent store (not this git tree):
 | P2.1 Profile edit (display name, timezone, currency) | **Done** |
 | P2.2 Chapter-scoped module overrides UI | **Done** |
 | P2.3 Authenticated Playwright vertical slice | **Done** (commit `51a4a03`) |
-| P2.4 Docs / roadmap reconciliation | **In progress** |
-| Phase 1B final acceptance review | **Pending** |
+| P2.4 Docs / roadmap reconciliation | **Done** (commit `6af7d7f`) |
+| Phase 1B final acceptance review | **Accepted 2026-11-24** (with explicit limitations) |
+
+### Accepted explicit limitations (do not silently resolve)
+
+These remain **accepted constraints** from the 2026-11-24 final acceptance review.
+They are not product blockers and were not “fixed” by this closure docs pass.
+
+**Testing / verification gaps**
+
+- Live password-login success + wrong-password Playwright cases were **skipped** when shell `E2E_USER_*` unset.
+- Authenticated Playwright used live gitignored `storageState` via `--no-deps` (not a fresh auth-preflight).
+- Password-setting e2e covers client mismatch only — **no** live `updateUser` password mutation.
+- SQL integrity scripts 01–04: **historical** human PASS on DEV — not re-executed at final acceptance.
+- Hosted Auth dashboard checklist (`docs/AUTH_DEV_SETUP.md`): **UNVERIFIED** at acceptance (app-layer safeguards PASS).
+
+**Product / security posture limitations**
+
+- Residual DEV `e2e-p23-…` chapters, overrides, habits/logs, project trees (app has no DELETE).
+- Module override cannot reset-to-inherit (no client DELETE of activation rows).
+- Chapter make-current is multi-statement; partial unique index is the concurrency backstop.
+- `habit_logs` retains authenticated UPDATE privilege; immutability relies on triggers (historically tested).
+- Trusted audit writer still deferred; clients SELECT-own audit only.
+- `next-env.d.ts` local generated path drift is expected noise (do not commit as cleanup).
+- Prior-to-isolation global Enable history may not match an unknown operator baseline.
+- Further schema apply / Docker / deploy / PROD remain **L3**.
+
+**Operator comfort (human; optional)**
+
+- Confirm Auth checklist against live DEV dashboard.
+- Optional: re-run credential-gated password-login with shell `E2E_USER_*`.
+- Optional privileged cleanup of e2e leftovers.
 
 ---
 
@@ -118,7 +149,7 @@ In scope (implemented unless noted):
 - Microservices / Redis / K8s
 - PROD migrations
 
-**Exit criteria (updated from implementation — acceptance review still required):**
+**Exit criteria (met — accepted 2026-11-24 with explicit limitations above):**
 
 | Criterion | Implementation status |
 |-----------|------------------------|
@@ -134,17 +165,22 @@ In scope (implemented unless noted):
 | CI / local unit tests | Vitest green on domain + UI helpers |
 | Migrations | Applied on DEV only with L3; no further apply without L3 |
 
-**Do not mark Phase 1B complete** until the human acceptance review closes the
-pending row above.
-
 ---
 
-## Phase 2 — Check-ins, reviews, physical
+## Phase 2 — Check-ins, reviews, physical *(authorized — not started)*
+
+**Status:** **Authorized to begin** after Phase 1B acceptance (2026-11-24).
+No Phase 2 features are implemented by the acceptance-closure docs pass.
+
+In scope when work starts:
 
 - Simple check-ins (`mood` / `energy` / `focus` + optional note)
 - Weekly review surfaces
 - Physical metrics + simple Recharts
 - Expand RLS/Playwright coverage on DEV
+
+Accepted Phase 1B limitations and all L3 gates (hosted schema, Docker, deploy, PROD,
+Auth dashboard changes) still apply.
 
 ## Phase 3 — Finances (careful semantics)
 
@@ -178,5 +214,6 @@ pending row above.
 
 ## Stop points
 
-Human review after Phase 0 and **0.1**, after Phase **1B acceptance**, and before
-any hosted migration or deploy in later phases.
+Human review after Phase 0 and **0.1**, after Phase **1B acceptance** (closed
+2026-11-24 with explicit limitations), and before any hosted migration or deploy
+in later phases.

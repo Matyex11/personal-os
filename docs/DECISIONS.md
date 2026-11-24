@@ -113,12 +113,14 @@ before Phase 1 without treating it as an emergency.
   admin only. See `docs/AUTH_DEV_SETUP.md`.
 - Resolves **U002**.
 
-### D015 — Dedicated EU development Supabase project *(provisional)*
+### D015 — Dedicated EU development Supabase project *(provisional; updated)*
 
 - **Choice:** Provision/use a dedicated **EU** Personal OS **DEV** project before
-  schema experiments. PROD is separate and later. Exact project ref still TBD
-  (see R002).
-- Partially resolves **U001**.
+  schema experiments. PROD is separate and later.
+- **Update (Phase 1B acceptance, 2026-11-24):** DEV is **personal-os-dev**
+  (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`). PROD ref remains separate and must
+  not be targeted casually (see R002).
+- Resolves **U001** for DEV; PROD naming still tracked under R002.
 
 ### D016 — MCP as in-repository package *(provisional)*
 
@@ -177,7 +179,7 @@ before Phase 1 without treating it as an emergency.
 | ID | Question | Notes |
 |----|----------|-------|
 | R001 | Rename CLI `project_id` (`personal-os-1` → `personal-os`) | Cosmetic (ex-U007) |
-| R002 | Concrete Supabase **DEV** (and later PROD) project refs | Human must provide; do not invent or scrape |
+| R002 | Concrete Supabase **PROD** project ref (DEV resolved) | **DEV resolved:** `personal-os-dev` / `qyysmgwdvhftbgwhpbjt` / `eu-central-1`. Documented PROD forbid: `bdmhlzbigdedqsqirwxn` — confirm when PROD cutover nears; do not invent or scrape |
 | R003 | MCP host vendor | Deferred (D017 / ex-U005) |
 | R004 | FX policy for cross-currency transfers | Rates source, mid-market vs booked rate |
 | R006 | Recharts vs lighter charts if performance bites | Ex-U012; accepted for v0 |
@@ -187,13 +189,26 @@ before Phase 1 without treating it as an emergency.
 
 ## Inspection notes (commands)
 
-| Check | Result |
-|-------|--------|
+### Phase 0 snapshot (2026-11-22) — historical
+
+| Check | Result (then) |
+|-------|----------------|
 | `git status` | Clean on `main` before Phase 0; foundation work on `cursor/personal-os-foundation-67da` |
-| `package.json` | Missing (expected) |
+| `package.json` | Missing (expected at Phase 0) |
 | Global `supabase` CLI | **Not on PATH** |
 | `npx supabase --version` | `3.2.0` |
 | `node` / `npx` | `v24.22.1` / `11.21.0` |
 | Docker / `supabase status` | Not started (constrained) |
 | `.env` files | None present |
 | Hosted project link | **Unknown / unsafe to assume** |
+
+### Current state note (Phase 1B acceptance, 2026-11-24)
+
+| Check | Result |
+|-------|--------|
+| App / `package.json` | Present — Next.js 16 vertical slice on branch |
+| Migration | `20261122190000` applied on **personal-os-dev** |
+| DEV ref | `qyysmgwdvhftbgwhpbjt` (`eu-central-1`) |
+| Docker | Still stopped (L3 to start) |
+| Secrets | `.env.example` only in git; `.env.local` local-only |
+| Phase status | Phase 1B **accepted with explicit limitations**; Phase 2 **authorized** |

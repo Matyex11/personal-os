@@ -1,17 +1,20 @@
 # Personal OS — Architecture
 
-## What already exists (inspection, 2026-11-22)
+## What already exists (updated after Phase 1B acceptance, 2026-11-24)
 
 | Item | Status |
 |------|--------|
-| GitHub repo `Matyex11/personal-os` | Present; foundation branch has Phase 0 docs |
-| `package.json` / app code | **Phase 1A present** — Next.js 16 App Router shell under `src/` (no DB client) |
+| GitHub repo `Matyex11/personal-os` | Present; work on `cursor/personal-os-foundation-67da` |
+| `package.json` / app code | **Phase 1B vertical slice** — Next.js 16 App Router + Supabase SSR clients under `src/` |
 | Supabase CLI config | `supabase/config.toml` (`project_id = "personal-os-1"`, Postgres **17**) |
-| `supabase/migrations/` | Empty placeholder; **no applied migrations** |
-| `.env` / credentials | `.env.example` placeholders only; Supabase vars commented until 1B |
+| `supabase/migrations/` | `20261122190000_phase1b_core.sql` present; **applied on personal-os-dev** |
+| `.env` / credentials | `.env.example` placeholders; secrets only in local `.env.local` (never commit) |
 | Docker / local Supabase | **Stopped**; must not be started without L3 |
-| Hosted Supabase link | **Not verified / not assumed safe** — treat any existing hosted project as unknown until a dedicated **EU development** project is provisioned (D015) |
+| Hosted Supabase DEV | **Named:** `personal-os-dev` (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`). PROD (`bdmhlzbigdedqsqirwxn`) is separate — never default |
 | XNINE infra | Must not be reused |
+
+*Historical note:* A 2026-11-22 Phase 0 inspection recorded empty migrations and an
+unverified hosted link. That snapshot is superseded by Phase 1B apply + acceptance.*
 
 ## Environment separation (dev vs production)
 
@@ -101,12 +104,13 @@ tests/unit|e2e
 
 **Phase 1A:** local shell + pure domain/Zod + tests.
 
-**Phase 1B (current):** Supabase SSR clients (`src/lib/supabase/*`), `src/proxy.ts`
-session refresh via `getClaims()`, domain services under `src/modules/*`,
-data-backed vertical-slice UI, cadence v1, migration
+**Phase 1B (accepted 2026-11-24 with explicit limitations):** Supabase SSR clients
+(`src/lib/supabase/*`), `src/proxy.ts` session refresh via `getClaims()`, domain
+services under `src/modules/*`, data-backed vertical-slice UI, cadence v1, migration
 `supabase/migrations/20261122190000_phase1b_core.sql` **applied** on
 `personal-os-dev`. Publishable key only. Auth: password primary + magic-link
-fallback. Further hosted schema apply remains L3. Phase 1B acceptance review pending.
+fallback. Further hosted schema apply remains L3. **Phase 2 authorized** (not started).
+See `docs/ROADMAP.md` for accepted limitations.
 
 ## MCP boundary (consistency with MCP_SPEC)
 
@@ -135,5 +139,6 @@ simple check-ins, JSON+CSV export, no Phase 1 Vercel deploy.
 
 ## Open architecture items
 
-Remaining: concrete DEV/PROD project refs, MCP host vendor, FX policy for
+DEV project ref is named (`qyysmgwdvhftbgwhpbjt` — R002 partial). Remaining:
+concrete **PROD** ref confirmation, MCP host vendor, FX policy for
 cross-currency transfers, cosmetic CLI `project_id` rename — see DECISIONS.
