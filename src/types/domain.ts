@@ -108,3 +108,27 @@ export type CheckIn = {
   body?: string | null;
   promptSetKey: "v1_simple";
 };
+
+export type ReviewStatus = "draft" | "completed";
+
+export type ReviewPeriodKind = "weekly" | "monthly" | "chapter" | "custom";
+
+export type WeeklyReviewAnswers = {
+  wentWell?: string;
+  didNotGoWell?: string;
+  learned?: string;
+  mattersNext?: string;
+};
+
+export type Review = {
+  id: string;
+  userId: string;
+  chapterId?: string | null;
+  periodKind: ReviewPeriodKind;
+  periodStart: string;
+  periodEnd: string;
+  status: ReviewStatus;
+  answers: WeeklyReviewAnswers;
+  narrative?: string | null;
+  completedAt?: string | null;
+};

@@ -108,3 +108,22 @@ export type CheckInRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type ReviewPeriodKind = "weekly" | "monthly" | "chapter" | "custom";
+
+export type ReviewStatus = "draft" | "completed";
+
+export type ReviewRow = {
+  id: string;
+  user_id: string;
+  chapter_id: string | null;
+  period_kind: ReviewPeriodKind;
+  period_start: string;
+  period_end: string;
+  status: ReviewStatus;
+  answers: Record<string, unknown>;
+  narrative: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};

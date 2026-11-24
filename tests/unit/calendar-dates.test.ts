@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addCalendarDays,
   inclusiveDaySpan,
+  isoWeekBounds,
   monthStartOn,
   todayInTimeZone,
 } from "@/lib/dates/calendar";
@@ -52,6 +53,31 @@ describe("civil date preservation helpers", () => {
     expect(addCalendarDays("2026-03-28", 1)).toBe("2026-03-29");
     expect(addCalendarDays("2026-10-25", -1)).toBe("2026-10-24");
     expect(addCalendarDays("2026-11-20", 0)).toBe("2026-11-20");
+  });
+});
+
+describe("isoWeekBounds", () => {
+  it("returns Monday–Sunday for a mid-week civil date", () => {
+    // 2026-11-24 is a Tuesday
+    expect(isoWeekBounds("2026-11-24", "Europe/Bucharest")).toEqual({
+      periodStart: "2026-11-23",
+      periodEnd: "2026-11-29",
+    });
+  });
+
+  it("keeps Sunday in the week that started the prior Monday", () => {
+    // 2026-11-29 is Sunday → same week as Mon 2026-11-23
+    expect(isoWeekBounds("2026-11-29")).toEqual({
+      periodStart: "2026-11-23",
+      periodEnd: "2026-11-29",
+    });
+  });
+
+  it("starts a new week on Monday", () => {
+    expect(isoWeekBounds("2026-11-23")).toEqual({
+      periodStart: "2026-11-23",
+      periodEnd: "2026-11-29",
+    });
   });
 });
 

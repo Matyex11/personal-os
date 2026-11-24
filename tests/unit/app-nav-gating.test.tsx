@@ -31,6 +31,7 @@ const always: NavVisibility = {
   habits: false,
   projects: false,
   checkins: false,
+  reviews: false,
 };
 
 afterEach(() => {
@@ -38,7 +39,7 @@ afterEach(() => {
 });
 
 describe("AppNav module visibility", () => {
-  it("hides habits, projects, and check-ins when inactive", () => {
+  it("hides habits, projects, check-ins, and reviews when inactive", () => {
     render(<AppNav visibility={always} />);
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Chapters" })).toBeInTheDocument();
@@ -46,9 +47,10 @@ describe("AppNav module visibility", () => {
     expect(screen.queryByRole("link", { name: "Habits" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Projects" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Check-ins" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Reviews" })).not.toBeInTheDocument();
   });
 
-  it("shows habits, projects, and check-ins when visibility allows", () => {
+  it("shows habits, projects, check-ins, and reviews when visibility allows", () => {
     render(
       <AppNav
         visibility={{
@@ -56,11 +58,13 @@ describe("AppNav module visibility", () => {
           habits: true,
           projects: true,
           checkins: true,
+          reviews: true,
         }}
       />,
     );
     expect(screen.getByRole("link", { name: "Habits" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Projects" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Check-ins" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reviews" })).toBeInTheDocument();
   });
 });

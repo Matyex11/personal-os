@@ -64,3 +64,25 @@ export function formatPercent(rate: number | null): string {
   if (rate === null) return "N/A";
   return `${Math.round(rate * 100)}%`;
 }
+
+/**
+ * ISO week Mon–Sun bounds for a civil YYYY-MM-DD date.
+ * Weekday is derived from the date itself (UTC calendar arithmetic), so the
+ * caller should pass a profile-TZ civil day (e.g. todayInTimeZone(tz)).
+ * `timeZone` is accepted for call-site clarity and is unused in the arithmetic.
+ */
+export function isoWeekBounds(
+  isoDate: string,
+  timeZone?: string,
+): { periodStart: string; periodEnd: string } {
+  // Callers pass profile TZ for clarity; bounds use the civil date itself.
+  void timeZone;
+  isoDateSchema.parse(isoDate);
+  const [y, m, d] = isoDate.split("-").map(Number) as [number, number, number];
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  const day = utc.getUTCDay(); // 0=Sun … 6=Sat
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const periodStart = addCalendarDays(isoDate, -daysFromMonday);
+  const periodEnd = addCalendarDays(periodStart, 6);
+  return { periodStart, periodEnd };
+}

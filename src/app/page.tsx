@@ -3,6 +3,7 @@ import { AttentionTasksSection } from "@/components/dashboard/attention-tasks-se
 import { CurrentChapterSection } from "@/components/dashboard/current-chapter-section";
 import { TodaysCheckInSection } from "@/components/dashboard/todays-check-in-section";
 import { TodaysHabitsSection } from "@/components/dashboard/todays-habits-section";
+import { WeeklyReviewSection } from "@/components/dashboard/weekly-review-section";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   getDashboardTodaysHabits,
 } from "@/modules/dashboard/service";
 import { getSessionModuleGating } from "@/modules/modules/gating";
+import { getCurrentWeekReviewStatus } from "@/modules/reviews/service";
 
 export default async function DashboardPage() {
   const user = await getOptionalUser();
@@ -22,11 +24,14 @@ export default async function DashboardPage() {
   const showHabits = gating ? gating.dashboard.todaysHabits : true;
   const showTasks = gating ? gating.dashboard.attentionTasks : true;
   const showCheckIn = gating ? gating.dashboard.todaysCheckIn : true;
+  const showWeeklyReview = gating ? gating.dashboard.weeklyReview : true;
 
   const chapter = user ? await getDashboardCurrentChapter() : null;
   const habits = user && showHabits ? await getDashboardTodaysHabits() : null;
   const tasks = user && showTasks ? await getDashboardAttentionTasks() : null;
   const checkIn = user && showCheckIn ? await getTodaysCheckInStatus() : null;
+  const weeklyReview =
+    user && showWeeklyReview ? await getCurrentWeekReviewStatus() : null;
 
   return (
     <div className="space-y-8">
@@ -51,6 +56,7 @@ export default async function DashboardPage() {
           {showTasks ? <AttentionTasksSection result={tasks} /> : null}
           {showHabits ? <TodaysHabitsSection result={habits} /> : null}
           {showCheckIn ? <TodaysCheckInSection result={checkIn} /> : null}
+          {showWeeklyReview ? <WeeklyReviewSection result={weeklyReview} /> : null}
         </div>
       )}
     </div>

@@ -26,6 +26,11 @@ import {
   updateTaskStatus,
 } from "@/modules/projects/service";
 import { updateProfileSettings } from "@/modules/profile/service";
+import {
+  completeReview,
+  reopenReview,
+  updateDraftReview,
+} from "@/modules/reviews/service";
 
 export async function createChapterAction(formData: FormData) {
   const status = String(formData.get("status") ?? "active");
@@ -224,6 +229,45 @@ export async function updateCheckInAction(formData: FormData) {
   });
   if (result.ok) {
     revalidatePath("/check-ins");
+    revalidatePath("/");
+  }
+  return result;
+}
+
+export async function updateDraftReviewAction(formData: FormData) {
+  const result = await updateDraftReview({
+    id: String(formData.get("id") ?? ""),
+    answers: {
+      wentWell: String(formData.get("wentWell") ?? ""),
+      didNotGoWell: String(formData.get("didNotGoWell") ?? ""),
+      learned: String(formData.get("learned") ?? ""),
+      mattersNext: String(formData.get("mattersNext") ?? ""),
+    },
+  });
+  if (result.ok) {
+    revalidatePath("/reviews");
+    revalidatePath("/");
+  }
+  return result;
+}
+
+export async function completeReviewAction(formData: FormData) {
+  const result = await completeReview({
+    id: String(formData.get("id") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/reviews");
+    revalidatePath("/");
+  }
+  return result;
+}
+
+export async function reopenReviewAction(formData: FormData) {
+  const result = await reopenReview({
+    id: String(formData.get("id") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/reviews");
     revalidatePath("/");
   }
   return result;
