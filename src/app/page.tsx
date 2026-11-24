@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { AttentionTasksSection } from "@/components/dashboard/attention-tasks-section";
 import { CurrentChapterSection } from "@/components/dashboard/current-chapter-section";
+import { TodaysCheckInSection } from "@/components/dashboard/todays-check-in-section";
 import { TodaysHabitsSection } from "@/components/dashboard/todays-habits-section";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { Button } from "@/components/ui/button";
 import { getOptionalUser } from "@/lib/auth/require-user";
+import { getTodaysCheckInStatus } from "@/modules/checkins/service";
 import {
   getDashboardAttentionTasks,
   getDashboardCurrentChapter,
@@ -19,10 +21,12 @@ export default async function DashboardPage() {
 
   const showHabits = gating ? gating.dashboard.todaysHabits : true;
   const showTasks = gating ? gating.dashboard.attentionTasks : true;
+  const showCheckIn = gating ? gating.dashboard.todaysCheckIn : true;
 
   const chapter = user ? await getDashboardCurrentChapter() : null;
   const habits = user && showHabits ? await getDashboardTodaysHabits() : null;
   const tasks = user && showTasks ? await getDashboardAttentionTasks() : null;
+  const checkIn = user && showCheckIn ? await getTodaysCheckInStatus() : null;
 
   return (
     <div className="space-y-8">
@@ -46,6 +50,7 @@ export default async function DashboardPage() {
           <CurrentChapterSection result={chapter} />
           {showTasks ? <AttentionTasksSection result={tasks} /> : null}
           {showHabits ? <TodaysHabitsSection result={habits} /> : null}
+          {showCheckIn ? <TodaysCheckInSection result={checkIn} /> : null}
         </div>
       )}
     </div>

@@ -32,11 +32,17 @@ describe("navVisibilityFromActivations", () => {
     expect(nav.settings).toBe(true);
     expect(nav.habits).toBe(false);
     expect(nav.projects).toBe(false);
+    expect(nav.checkins).toBe(false);
   });
 
   it("shows habits only when habits is active", () => {
     expect(navVisibilityFromActivations(activations({ habits: true })).habits).toBe(true);
     expect(navVisibilityFromActivations(activations({ tasks: true })).habits).toBe(false);
+  });
+
+  it("shows checkins only when checkins is active", () => {
+    expect(navVisibilityFromActivations(activations({ checkins: true })).checkins).toBe(true);
+    expect(navVisibilityFromActivations(activations({ habits: true })).checkins).toBe(false);
   });
 
   it("shows projects when any of projects/milestones/tasks is active", () => {
@@ -50,21 +56,24 @@ describe("navVisibilityFromActivations", () => {
 });
 
 describe("dashboardVisibilityFromActivations", () => {
-  it("always shows current chapter and gates habits/tasks sections", () => {
+  it("always shows current chapter and gates habits/tasks/check-in sections", () => {
     const allOff = dashboardVisibilityFromActivations(activations({}));
     expect(allOff.currentChapter).toBe(true);
     expect(allOff.todaysHabits).toBe(false);
     expect(allOff.attentionTasks).toBe(false);
+    expect(allOff.todaysCheckIn).toBe(false);
 
     const both = dashboardVisibilityFromActivations(
-      activations({ habits: true, tasks: true }),
+      activations({ habits: true, tasks: true, checkins: true }),
     );
     expect(both.todaysHabits).toBe(true);
     expect(both.attentionTasks).toBe(true);
+    expect(both.todaysCheckIn).toBe(true);
 
     const habitsOnly = dashboardVisibilityFromActivations(activations({ habits: true }));
     expect(habitsOnly.todaysHabits).toBe(true);
     expect(habitsOnly.attentionTasks).toBe(false);
+    expect(habitsOnly.todaysCheckIn).toBe(false);
   });
 });
 
@@ -118,11 +127,13 @@ describe("activation query failure handling", () => {
       settings: true,
       habits: true,
       projects: true,
+      checkins: true,
     });
     expect(PRESERVE_DASHBOARD_VISIBILITY).toEqual({
       currentChapter: true,
       todaysHabits: true,
       attentionTasks: true,
+      todaysCheckIn: true,
     });
     expect(PRESERVE_PROJECTS_GATING.workspaceActive).toBe(true);
     expect(PRESERVE_PROJECTS_GATING.canManageTaskStatus).toBe(true);
@@ -138,13 +149,16 @@ describe("activation query failure handling", () => {
       dashboard: PRESERVE_DASHBOARD_VISIBILITY,
       projects: PRESERVE_PROJECTS_GATING,
       habitsActive: true,
+      checkinsActive: true,
       resolutionFailed: true,
     };
     expect(moduleActiveFromGating(failed, "habits")).toBe(true);
     expect(moduleActiveFromGating(failed, "tasks")).toBe(true);
+    expect(moduleActiveFromGating(failed, "checkins")).toBe(true);
     expect(failed.resolutionFailed).toBe(true);
     expect(failed.nav.habits).toBe(true);
     expect(failed.nav.projects).toBe(true);
+    expect(failed.nav.checkins).toBe(true);
   });
 
   it("treats explicit inactive activations as off only when resolution succeeded", () => {
@@ -156,10 +170,13 @@ describe("activation query failure handling", () => {
       dashboard: dashboardVisibilityFromActivations(activations({})),
       projects: projectsWorkspaceFromActivations(activations({})),
       habitsActive: false,
+      checkinsActive: false,
       resolutionFailed: false,
     };
     expect(moduleActiveFromGating(ok, "habits")).toBe(false);
+    expect(moduleActiveFromGating(ok, "checkins")).toBe(false);
     expect(ok.nav.habits).toBe(false);
+    expect(ok.nav.checkins).toBe(false);
     expect(ok.projects.workspaceActive).toBe(false);
   });
 });

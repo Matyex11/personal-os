@@ -15,12 +15,14 @@ export type NavVisibility = {
   settings: true;
   habits: boolean;
   projects: boolean;
+  checkins: boolean;
 };
 
 export type DashboardSectionVisibility = {
   currentChapter: true;
   todaysHabits: boolean;
   attentionTasks: boolean;
+  todaysCheckIn: boolean;
 };
 
 export type ProjectsWorkspaceGating = {
@@ -46,6 +48,7 @@ export type ModuleGatingState =
       dashboard: DashboardSectionVisibility;
       projects: ProjectsWorkspaceGating;
       habitsActive: boolean;
+      checkinsActive: boolean;
       resolutionFailed: false;
     }
   | {
@@ -57,6 +60,7 @@ export type ModuleGatingState =
       dashboard: DashboardSectionVisibility;
       projects: ProjectsWorkspaceGating;
       habitsActive: boolean;
+      checkinsActive: boolean;
       resolutionFailed: true;
     }
   | {
@@ -67,6 +71,7 @@ export type ModuleGatingState =
       dashboard: DashboardSectionVisibility;
       projects: ProjectsWorkspaceGating;
       habitsActive: boolean;
+      checkinsActive: boolean;
       resolutionFailed: false;
     };
 
@@ -77,6 +82,7 @@ export const PRESERVE_NAV_VISIBILITY: NavVisibility = {
   settings: true,
   habits: true,
   projects: true,
+  checkins: true,
 };
 
 /** On failure, keep dashboard sections available rather than silently hiding them. */
@@ -84,6 +90,7 @@ export const PRESERVE_DASHBOARD_VISIBILITY: DashboardSectionVisibility = {
   currentChapter: true,
   todaysHabits: true,
   attentionTasks: true,
+  todaysCheckIn: true,
 };
 
 export const PRESERVE_PROJECTS_GATING: ProjectsWorkspaceGating = {
@@ -106,12 +113,14 @@ export function navVisibilityFromActivations(
   const projects = isResolvedModuleActive(resolved, "projects");
   const milestones = isResolvedModuleActive(resolved, "milestones");
   const tasks = isResolvedModuleActive(resolved, "tasks");
+  const checkins = isResolvedModuleActive(resolved, "checkins");
   return {
     dashboard: true,
     chapters: true,
     settings: true,
     habits,
     projects: projects || milestones || tasks,
+    checkins,
   };
 }
 
@@ -122,6 +131,7 @@ export function dashboardVisibilityFromActivations(
     currentChapter: true,
     todaysHabits: isResolvedModuleActive(resolved, "habits"),
     attentionTasks: isResolvedModuleActive(resolved, "tasks"),
+    todaysCheckIn: isResolvedModuleActive(resolved, "checkins"),
   };
 }
 
@@ -172,6 +182,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       dashboard: PRESERVE_DASHBOARD_VISIBILITY,
       projects: PRESERVE_PROJECTS_GATING,
       habitsActive: true,
+      checkinsActive: true,
       resolutionFailed: false,
     };
   }
@@ -189,6 +200,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       dashboard: PRESERVE_DASHBOARD_VISIBILITY,
       projects: PRESERVE_PROJECTS_GATING,
       habitsActive: true,
+      checkinsActive: true,
       resolutionFailed: true,
     };
   }
@@ -204,6 +216,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       dashboard: PRESERVE_DASHBOARD_VISIBILITY,
       projects: PRESERVE_PROJECTS_GATING,
       habitsActive: true,
+      checkinsActive: true,
       resolutionFailed: true,
     };
   }
@@ -217,6 +230,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
     dashboard: dashboardVisibilityFromActivations(activations),
     projects: projectsWorkspaceFromActivations(activations),
     habitsActive: isResolvedModuleActive(activations, "habits"),
+    checkinsActive: isResolvedModuleActive(activations, "checkins"),
     resolutionFailed: false,
   };
 });

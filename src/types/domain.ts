@@ -96,3 +96,15 @@ export type Task = {
   dueOn?: string | null;
   completedAt?: string | null;
 };
+
+export type CheckIn = {
+  id: string;
+  userId: string;
+  chapterId?: string | null;
+  checkedOn: string;
+  mood: number;
+  energy: number;
+  focus: number;
+  body?: string | null;
+  promptSetKey: "v1_simple";
+};

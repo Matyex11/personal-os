@@ -8,6 +8,10 @@ import {
   makeChapterCurrent,
 } from "@/modules/chapters/service";
 import {
+  updateCheckIn,
+  upsertCheckIn,
+} from "@/modules/checkins/service";
+import {
   createHabit,
   listHabitRecoveryTargets,
   logHabit,
@@ -188,5 +192,39 @@ export async function updateProfileSettingsAction(formData: FormData) {
     baseCurrency: String(formData.get("baseCurrency") ?? ""),
   });
   if (result.ok) revalidatePath("/settings");
+  return result;
+}
+
+export async function upsertCheckInAction(formData: FormData) {
+  const bodyRaw = String(formData.get("body") ?? "").trim();
+  const chapterRaw = String(formData.get("chapterId") ?? "").trim();
+  const result = await upsertCheckIn({
+    checkedOn: String(formData.get("checkedOn") ?? ""),
+    mood: Number(formData.get("mood") ?? 0),
+    energy: Number(formData.get("energy") ?? 0),
+    focus: Number(formData.get("focus") ?? 0),
+    body: bodyRaw || undefined,
+    chapterId: chapterRaw || undefined,
+  });
+  if (result.ok) {
+    revalidatePath("/check-ins");
+    revalidatePath("/");
+  }
+  return result;
+}
+
+export async function updateCheckInAction(formData: FormData) {
+  const bodyRaw = String(formData.get("body") ?? "").trim();
+  const result = await updateCheckIn({
+    id: String(formData.get("id") ?? ""),
+    mood: Number(formData.get("mood") ?? 0),
+    energy: Number(formData.get("energy") ?? 0),
+    focus: Number(formData.get("focus") ?? 0),
+    body: bodyRaw || undefined,
+  });
+  if (result.ok) {
+    revalidatePath("/check-ins");
+    revalidatePath("/");
+  }
   return result;
 }

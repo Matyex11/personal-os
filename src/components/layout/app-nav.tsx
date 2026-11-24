@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { NavVisibility } from "@/modules/modules/gating";
 
 type NavLink = {
-  href: "/" | "/chapters" | "/habits" | "/projects" | "/settings";
+  href: "/" | "/chapters" | "/habits" | "/projects" | "/check-ins" | "/settings";
   label: string;
   key: keyof NavVisibility;
 };
@@ -16,6 +16,7 @@ const links: NavLink[] = [
   { href: "/chapters", label: "Chapters", key: "chapters" },
   { href: "/habits", label: "Habits", key: "habits" },
   { href: "/projects", label: "Projects", key: "projects" },
+  { href: "/check-ins", label: "Check-ins", key: "checkins" },
   { href: "/settings", label: "Settings", key: "settings" },
 ];
 
