@@ -17,6 +17,7 @@ export type NavVisibility = {
   projects: boolean;
   checkins: boolean;
   reviews: boolean;
+  physical: boolean;
 };
 
 export type DashboardSectionVisibility = {
@@ -25,6 +26,7 @@ export type DashboardSectionVisibility = {
   attentionTasks: boolean;
   todaysCheckIn: boolean;
   weeklyReview: boolean;
+  physicalSnapshot: boolean;
 };
 
 export type ProjectsWorkspaceGating = {
@@ -52,6 +54,7 @@ export type ModuleGatingState =
       habitsActive: boolean;
       checkinsActive: boolean;
       reviewsActive: boolean;
+      physicalActive: boolean;
       resolutionFailed: false;
     }
   | {
@@ -65,6 +68,7 @@ export type ModuleGatingState =
       habitsActive: boolean;
       checkinsActive: boolean;
       reviewsActive: boolean;
+      physicalActive: boolean;
       resolutionFailed: true;
     }
   | {
@@ -77,6 +81,7 @@ export type ModuleGatingState =
       habitsActive: boolean;
       checkinsActive: boolean;
       reviewsActive: boolean;
+      physicalActive: boolean;
       resolutionFailed: false;
     };
 
@@ -89,6 +94,7 @@ export const PRESERVE_NAV_VISIBILITY: NavVisibility = {
   projects: true,
   checkins: true,
   reviews: true,
+  physical: true,
 };
 
 /** On failure, keep dashboard sections available rather than silently hiding them. */
@@ -98,6 +104,7 @@ export const PRESERVE_DASHBOARD_VISIBILITY: DashboardSectionVisibility = {
   attentionTasks: true,
   todaysCheckIn: true,
   weeklyReview: true,
+  physicalSnapshot: true,
 };
 
 export const PRESERVE_PROJECTS_GATING: ProjectsWorkspaceGating = {
@@ -122,6 +129,7 @@ export function navVisibilityFromActivations(
   const tasks = isResolvedModuleActive(resolved, "tasks");
   const checkins = isResolvedModuleActive(resolved, "checkins");
   const reviews = isResolvedModuleActive(resolved, "reviews");
+  const physical = isResolvedModuleActive(resolved, "physical");
   return {
     dashboard: true,
     chapters: true,
@@ -130,6 +138,7 @@ export function navVisibilityFromActivations(
     projects: projects || milestones || tasks,
     checkins,
     reviews,
+    physical,
   };
 }
 
@@ -142,6 +151,7 @@ export function dashboardVisibilityFromActivations(
     attentionTasks: isResolvedModuleActive(resolved, "tasks"),
     todaysCheckIn: isResolvedModuleActive(resolved, "checkins"),
     weeklyReview: isResolvedModuleActive(resolved, "reviews"),
+    physicalSnapshot: isResolvedModuleActive(resolved, "physical"),
   };
 }
 
@@ -194,6 +204,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       habitsActive: true,
       checkinsActive: true,
       reviewsActive: true,
+      physicalActive: true,
       resolutionFailed: false,
     };
   }
@@ -213,6 +224,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       habitsActive: true,
       checkinsActive: true,
       reviewsActive: true,
+      physicalActive: true,
       resolutionFailed: true,
     };
   }
@@ -230,6 +242,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
       habitsActive: true,
       checkinsActive: true,
       reviewsActive: true,
+      physicalActive: true,
       resolutionFailed: true,
     };
   }
@@ -245,6 +258,7 @@ export const getSessionModuleGating = cache(async (): Promise<ModuleGatingState>
     habitsActive: isResolvedModuleActive(activations, "habits"),
     checkinsActive: isResolvedModuleActive(activations, "checkins"),
     reviewsActive: isResolvedModuleActive(activations, "reviews"),
+    physicalActive: isResolvedModuleActive(activations, "physical"),
     resolutionFailed: false,
   };
 });

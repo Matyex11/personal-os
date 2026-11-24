@@ -13,6 +13,7 @@ type NavLink = {
     | "/projects"
     | "/check-ins"
     | "/reviews"
+    | "/physical"
     | "/settings";
   label: string;
   key: keyof NavVisibility;
@@ -25,6 +26,7 @@ const links: NavLink[] = [
   { href: "/projects", label: "Projects", key: "projects" },
   { href: "/check-ins", label: "Check-ins", key: "checkins" },
   { href: "/reviews", label: "Reviews", key: "reviews" },
+  { href: "/physical", label: "Physical", key: "physical" },
   { href: "/settings", label: "Settings", key: "settings" },
 ];
 

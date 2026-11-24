@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AttentionTasksSection } from "@/components/dashboard/attention-tasks-section";
 import { CurrentChapterSection } from "@/components/dashboard/current-chapter-section";
+import { PhysicalSnapshotSection } from "@/components/dashboard/physical-snapshot-section";
 import { TodaysCheckInSection } from "@/components/dashboard/todays-check-in-section";
 import { TodaysHabitsSection } from "@/components/dashboard/todays-habits-section";
 import { WeeklyReviewSection } from "@/components/dashboard/weekly-review-section";
@@ -15,6 +16,7 @@ import {
   getDashboardTodaysHabits,
 } from "@/modules/dashboard/service";
 import { getSessionModuleGating } from "@/modules/modules/gating";
+import { getLatestPhysicalSnapshot } from "@/modules/physical/service";
 import { getCurrentWeekReviewStatus } from "@/modules/reviews/service";
 
 export default async function DashboardPage() {
@@ -25,6 +27,7 @@ export default async function DashboardPage() {
   const showTasks = gating ? gating.dashboard.attentionTasks : true;
   const showCheckIn = gating ? gating.dashboard.todaysCheckIn : true;
   const showWeeklyReview = gating ? gating.dashboard.weeklyReview : true;
+  const showPhysical = gating ? gating.dashboard.physicalSnapshot : true;
 
   const chapter = user ? await getDashboardCurrentChapter() : null;
   const habits = user && showHabits ? await getDashboardTodaysHabits() : null;
@@ -32,6 +35,7 @@ export default async function DashboardPage() {
   const checkIn = user && showCheckIn ? await getTodaysCheckInStatus() : null;
   const weeklyReview =
     user && showWeeklyReview ? await getCurrentWeekReviewStatus() : null;
+  const physical = user && showPhysical ? await getLatestPhysicalSnapshot() : null;
 
   return (
     <div className="space-y-8">
@@ -57,6 +61,7 @@ export default async function DashboardPage() {
           {showHabits ? <TodaysHabitsSection result={habits} /> : null}
           {showCheckIn ? <TodaysCheckInSection result={checkIn} /> : null}
           {showWeeklyReview ? <WeeklyReviewSection result={weeklyReview} /> : null}
+          {showPhysical ? <PhysicalSnapshotSection result={physical} /> : null}
         </div>
       )}
     </div>

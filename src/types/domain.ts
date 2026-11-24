@@ -132,3 +132,20 @@ export type Review = {
   narrative?: string | null;
   completedAt?: string | null;
 };
+
+export type PhysicalMetricKey =
+  | "weight_kg"
+  | "sleep_hours"
+  | "steps"
+  | "resting_hr_bpm"
+  | "workout_minutes";
+
+export type PhysicalMetric = {
+  id: string;
+  userId: string;
+  recordedOn: string;
+  metricKey: PhysicalMetricKey;
+  value: number;
+  unit: string;
+  notes?: string | null;
+};

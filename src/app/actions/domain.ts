@@ -27,6 +27,9 @@ import {
 } from "@/modules/projects/service";
 import { updateProfileSettings } from "@/modules/profile/service";
 import {
+  upsertPhysicalMetricsForDay,
+} from "@/modules/physical/service";
+import {
   completeReview,
   reopenReview,
   updateDraftReview,
@@ -268,6 +271,45 @@ export async function reopenReviewAction(formData: FormData) {
   });
   if (result.ok) {
     revalidatePath("/reviews");
+    revalidatePath("/");
+  }
+  return result;
+}
+
+const PHYSICAL_FORM_KEYS = [
+  "weight_kg",
+  "sleep_hours",
+  "steps",
+  "resting_hr_bpm",
+  "workout_minutes",
+] as const;
+
+export async function upsertPhysicalMetricsForDayAction(formData: FormData) {
+  const recordedOn = String(formData.get("recordedOn") ?? "");
+  const sharedNotes = String(formData.get("notes") ?? "").trim();
+  const metrics: Array<{
+    metricKey: (typeof PHYSICAL_FORM_KEYS)[number];
+    value: number;
+    notes?: string;
+  }> = [];
+
+  for (const metricKey of PHYSICAL_FORM_KEYS) {
+    const raw = String(formData.get(metricKey) ?? "").trim();
+    if (!raw) continue;
+    const value = Number(raw);
+    metrics.push({
+      metricKey,
+      value,
+      notes: sharedNotes || undefined,
+    });
+  }
+
+  const result = await upsertPhysicalMetricsForDay({
+    recordedOn,
+    metrics,
+  });
+  if (result.ok) {
+    revalidatePath("/physical");
     revalidatePath("/");
   }
   return result;

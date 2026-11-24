@@ -127,3 +127,22 @@ export type ReviewRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type PhysicalMetricKey =
+  | "weight_kg"
+  | "sleep_hours"
+  | "steps"
+  | "resting_hr_bpm"
+  | "workout_minutes";
+
+export type PhysicalMetricRow = {
+  id: string;
+  user_id: string;
+  recorded_on: string;
+  metric_key: PhysicalMetricKey;
+  value: number;
+  unit: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};

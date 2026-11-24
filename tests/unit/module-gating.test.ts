@@ -34,6 +34,7 @@ describe("navVisibilityFromActivations", () => {
     expect(nav.projects).toBe(false);
     expect(nav.checkins).toBe(false);
     expect(nav.reviews).toBe(false);
+    expect(nav.physical).toBe(false);
   });
 
   it("shows habits only when habits is active", () => {
@@ -51,6 +52,11 @@ describe("navVisibilityFromActivations", () => {
     expect(navVisibilityFromActivations(activations({ checkins: true })).reviews).toBe(false);
   });
 
+  it("shows physical only when physical is active", () => {
+    expect(navVisibilityFromActivations(activations({ physical: true })).physical).toBe(true);
+    expect(navVisibilityFromActivations(activations({ reviews: true })).physical).toBe(false);
+  });
+
   it("shows projects when any of projects/milestones/tasks is active", () => {
     expect(navVisibilityFromActivations(activations({ projects: true })).projects).toBe(true);
     expect(navVisibilityFromActivations(activations({ milestones: true })).projects).toBe(true);
@@ -62,27 +68,36 @@ describe("navVisibilityFromActivations", () => {
 });
 
 describe("dashboardVisibilityFromActivations", () => {
-  it("always shows current chapter and gates habits/tasks/check-in/review sections", () => {
+  it("always shows current chapter and gates habits/tasks/check-in/review/physical sections", () => {
     const allOff = dashboardVisibilityFromActivations(activations({}));
     expect(allOff.currentChapter).toBe(true);
     expect(allOff.todaysHabits).toBe(false);
     expect(allOff.attentionTasks).toBe(false);
     expect(allOff.todaysCheckIn).toBe(false);
     expect(allOff.weeklyReview).toBe(false);
+    expect(allOff.physicalSnapshot).toBe(false);
 
     const both = dashboardVisibilityFromActivations(
-      activations({ habits: true, tasks: true, checkins: true, reviews: true }),
+      activations({
+        habits: true,
+        tasks: true,
+        checkins: true,
+        reviews: true,
+        physical: true,
+      }),
     );
     expect(both.todaysHabits).toBe(true);
     expect(both.attentionTasks).toBe(true);
     expect(both.todaysCheckIn).toBe(true);
     expect(both.weeklyReview).toBe(true);
+    expect(both.physicalSnapshot).toBe(true);
 
     const habitsOnly = dashboardVisibilityFromActivations(activations({ habits: true }));
     expect(habitsOnly.todaysHabits).toBe(true);
     expect(habitsOnly.attentionTasks).toBe(false);
     expect(habitsOnly.todaysCheckIn).toBe(false);
     expect(habitsOnly.weeklyReview).toBe(false);
+    expect(habitsOnly.physicalSnapshot).toBe(false);
   });
 });
 
@@ -138,6 +153,7 @@ describe("activation query failure handling", () => {
       projects: true,
       checkins: true,
       reviews: true,
+      physical: true,
     });
     expect(PRESERVE_DASHBOARD_VISIBILITY).toEqual({
       currentChapter: true,
@@ -145,6 +161,7 @@ describe("activation query failure handling", () => {
       attentionTasks: true,
       todaysCheckIn: true,
       weeklyReview: true,
+      physicalSnapshot: true,
     });
     expect(PRESERVE_PROJECTS_GATING.workspaceActive).toBe(true);
     expect(PRESERVE_PROJECTS_GATING.canManageTaskStatus).toBe(true);
@@ -162,17 +179,20 @@ describe("activation query failure handling", () => {
       habitsActive: true,
       checkinsActive: true,
       reviewsActive: true,
+      physicalActive: true,
       resolutionFailed: true,
     };
     expect(moduleActiveFromGating(failed, "habits")).toBe(true);
     expect(moduleActiveFromGating(failed, "tasks")).toBe(true);
     expect(moduleActiveFromGating(failed, "checkins")).toBe(true);
     expect(moduleActiveFromGating(failed, "reviews")).toBe(true);
+    expect(moduleActiveFromGating(failed, "physical")).toBe(true);
     expect(failed.resolutionFailed).toBe(true);
     expect(failed.nav.habits).toBe(true);
     expect(failed.nav.projects).toBe(true);
     expect(failed.nav.checkins).toBe(true);
     expect(failed.nav.reviews).toBe(true);
+    expect(failed.nav.physical).toBe(true);
   });
 
   it("treats explicit inactive activations as off only when resolution succeeded", () => {
@@ -186,14 +206,17 @@ describe("activation query failure handling", () => {
       habitsActive: false,
       checkinsActive: false,
       reviewsActive: false,
+      physicalActive: false,
       resolutionFailed: false,
     };
     expect(moduleActiveFromGating(ok, "habits")).toBe(false);
     expect(moduleActiveFromGating(ok, "checkins")).toBe(false);
     expect(moduleActiveFromGating(ok, "reviews")).toBe(false);
+    expect(moduleActiveFromGating(ok, "physical")).toBe(false);
     expect(ok.nav.habits).toBe(false);
     expect(ok.nav.checkins).toBe(false);
     expect(ok.nav.reviews).toBe(false);
+    expect(ok.nav.physical).toBe(false);
     expect(ok.projects.workspaceActive).toBe(false);
   });
 });
