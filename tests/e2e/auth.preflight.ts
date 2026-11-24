@@ -121,6 +121,16 @@ setup("password login writes gitignored storageState", async ({ page }) => {
 
   const loginForm = page.locator('form[data-auth-ready="true"]');
   const loginAlert = loginForm.getByRole("alert");
+
+  /** Clear password inputs before failure artifacts are captured — never log values. */
+  async function clearPasswordInputs(): Promise<void> {
+    const fields = page.locator('input[type="password"]');
+    const count = await fields.count();
+    for (let i = 0; i < count; i += 1) {
+      await fields.nth(i).fill("").catch(() => undefined);
+    }
+  }
+
   try {
     await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
   } catch {
@@ -136,6 +146,8 @@ setup("password login writes gitignored storageState", async ({ page }) => {
         : `Auth token statuses (sanitized): ${tokenHits
             .map((hit) => `${hit.grant ?? "unknown"}=${hit.status}`)
             .join(", ")}.`;
+
+    await clearPasswordInputs();
 
     throw new Error(
       [

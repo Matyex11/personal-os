@@ -44,6 +44,8 @@ export default defineConfig({
       name: "chromium-authenticated",
       testMatch: /[/\\]authenticated[/\\].*\.spec\.ts$/,
       dependencies: ["auth-preflight"],
+      fullyParallel: false,
+      workers: 1,
       use: {
         ...devices["Desktop Chrome"],
         storageState: authStorageState,

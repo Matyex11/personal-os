@@ -24,14 +24,16 @@ export function ActionForm({ action, children, submitLabel, className }: ActionF
       className={className}
       onSubmit={(event) => {
         event.preventDefault();
-        const formData = new FormData(event.currentTarget);
+        const form = event.currentTarget;
+        const formData = new FormData(form);
         setMessage(null);
         setError(null);
         startTransition(async () => {
           const result = await action(formData);
           if (result.ok) {
             setMessage("Saved.");
-            event.currentTarget.reset();
+            // Retain form reference — event.currentTarget is null after await.
+            form.reset();
             router.refresh();
           } else {
             setError(result.message);
