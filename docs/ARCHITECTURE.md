@@ -56,7 +56,7 @@ the human names the DEV project and approves the exact action.
 | Charts | Recharts | **Accept** for v0 (U012 revisit if needed) |
 | Architecture style | Modular monolith | **Accept** |
 | Data | Supabase Postgres | **Accept** — **DEV project first**; PROD later |
-| Auth | Supabase Auth — **email magic link** (D014) | **Accept** |
+| Auth | Supabase Auth — **email/password primary**, magic-link fallback (D014) | **Accept** |
 | Validation | Zod | **Accept** |
 | Tests | Vitest + Playwright | **Accept** |
 | MCP | In-repo `mcp/` SDK server | **Accept**; host vendor deferred |
@@ -103,9 +103,10 @@ tests/unit|e2e
 
 **Phase 1B (current):** Supabase SSR clients (`src/lib/supabase/*`), `src/proxy.ts`
 session refresh via `getClaims()`, domain services under `src/modules/*`,
-data-backed pages, cadence v1, migration **draft**
-`supabase/migrations/20261122190000_phase1b_core.sql` for `personal-os-dev`.
-Publishable key only. **Migrations not applied** until L3.
+data-backed vertical-slice UI, cadence v1, migration
+`supabase/migrations/20261122190000_phase1b_core.sql` **applied** on
+`personal-os-dev`. Publishable key only. Auth: password primary + magic-link
+fallback. Further hosted schema apply remains L3. Phase 1B acceptance review pending.
 
 ## MCP boundary (consistency with MCP_SPEC)
 
@@ -119,7 +120,7 @@ Publishable key only. **Migrations not applied** until L3.
 | Layer | Tool | Focus |
 |-------|------|-------|
 | Unit | Vitest 3 + Testing Library | Habit reporting, Zod recovery rules, UI primitives (Phase 1A ✅) |
-| E2E | Playwright | Shell navigation (Phase 1A ✅); auth/habit flows in 1B+ |
+| E2E | Playwright | Shell navigation (1A ✅); unauth + authenticated vertical slice (1B) |
 | DB | When DEV DB available | RLS + composite ownership; never start Docker without L3 |
 | MCP | Phase 4 | Permission matrix, sensitive denial, audit events |
 
@@ -128,7 +129,7 @@ system Node binary if an agent-bundled Node 18 appears earlier on PATH.
 
 ## Defaults (provisional product decisions)
 
-See `docs/DECISIONS.md` D013–D023: single-user v0, magic link, EU DEV Supabase,
+See `docs/DECISIONS.md` D013–D023: single-user v0, email/password (+ magic-link fallback), EU DEV Supabase,
 in-repo MCP, Docker optional/stopped, `Europe/Bucharest`, RON + multi-currency,
 simple check-ins, JSON+CSV export, no Phase 1 Vercel deploy.
 

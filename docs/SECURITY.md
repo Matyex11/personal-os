@@ -121,7 +121,9 @@ Require L3 human approval **and** UI/MCP confirmation:
 ## Auth open-redirect / signup safeguards
 
 - Callback / login `next` validated by `safeNextPath` (same-origin relative only).
-- Magic link uses `shouldCreateUser: false`; first account is manual on DEV.
+- Primary sign-in is email/password; magic-link fallback uses `shouldCreateUser: false`.
+- No public signup; first DEV account is manual; no public recovery UI (admin reset only).
+- Publishable key only in the browser/app; never service-role.
 - Agents must not change hosted Auth settings without explicit human approval.
 
 ## Audit trail
@@ -134,9 +136,10 @@ Require L3 human approval **and** UI/MCP confirmation:
 ## Testing security (initial)
 
 - Vitest: permission helpers, sensitive defaults, recovery immutability helpers.
-- Playwright: auth smoke; ownership once multi-session testing exists.
-- Before first **DEV** migration: RLS on, composite FKs planned, correct project
-  ref, no XNINE refs, no service role in client.
+- Playwright: unauthenticated + authenticated vertical-slice smoke (gitignored
+  storageState; dedicated E2E env vars; no service-role in browser).
+- DEV migration applied with L3; further apply still L3. RLS on; no XNINE refs;
+  no service role in client.
 
 ## Incident defaults
 

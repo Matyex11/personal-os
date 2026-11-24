@@ -1,9 +1,10 @@
 # Personal OS — Database Schema (Conceptual)
 
-> **Status:** Phase 1B migration **drafted** in
+> **Status:** Phase 1B migration
 > `supabase/migrations/20261122190000_phase1b_core.sql` for **personal-os-dev**
-> (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`). **Not applied.** Docker stays stopped.
-> Never run against an unknown/production project by default.
+> (`qyysmgwdvhftbgwhpbjt`, `eu-central-1`) — **applied on DEV** (human L3).
+> Docker stays stopped. Never run against an unknown/production project by default.
+> Further schema changes still require explicit L3.
 
 ## Design goals
 

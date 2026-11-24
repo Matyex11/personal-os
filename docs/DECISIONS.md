@@ -103,9 +103,14 @@ before Phase 1 without treating it as an emergency.
   RLS (multi-user-safe schema, single-user product).
 - Resolves **U003**.
 
-### D014 — Email magic-link auth for v0 *(provisional)*
+### D014 — Email/password auth for v0 *(provisional; updated)*
 
-- **Choice:** Supabase email magic link only for v0; OAuth later if needed.
+- **Original choice:** Supabase email magic link only for v0; OAuth later if needed.
+- **Update (Phase 1B):** **Email/password primary** (`signInWithPassword`);
+  magic link / OTP remains a **fallback** (`signInWithOtp` with
+  `shouldCreateUser: false`). No public signup; no public recovery UI; password
+  set/change in Settings (≥ 12 chars); manual recovery via trusted Supabase Auth
+  admin only. See `docs/AUTH_DEV_SETUP.md`.
 - Resolves **U002**.
 
 ### D015 — Dedicated EU development Supabase project *(provisional)*

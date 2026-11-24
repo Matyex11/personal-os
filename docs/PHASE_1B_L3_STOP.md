@@ -1,10 +1,11 @@
-# Phase 1B — L3 stop package (awaiting apply approval)
+# Phase 1B — L3 stop package (historical apply record)
 
-> **Status after post-`fa93208` L3 test corrections:** migration + SQL tests +
-> docs updated. **Migration still NOT applied.** Docker not started. Hosted Auth
-> unchanged. Target remains **personal-os-dev** / `qyysmgwdvhftbgwhpbjt` /
-> `eu-central-1` only. Do **not** touch `personal-os` (`bdmhlzbigdedqsqirwxn`).
-> SQL tests remain **authored, not executed**.
+> **Current status (P2.4 docs reconciliation):** migration `20261122190000`
+> **applied** on **personal-os-dev** / `qyysmgwdvhftbgwhpbjt` / `eu-central-1`;
+> SQL integrity scripts **passed** (human). Docker still not started. Hosted Auth
+> changes remain L3-gated. Do **not** touch `personal-os` (`bdmhlzbigdedqsqirwxn`).
+> Body below is the **pre-apply** stop package kept for audit; prefer
+> `docs/ROADMAP.md` and `docs/AUTH_DEV_SETUP.md` for live Phase 1B status.
 
 ## 1. Exact migration target
 
@@ -81,7 +82,7 @@ Accept → TRUE:
 | chapter module_activations | chapters | CASCADE |
 | user-owned rows | `auth.users` | CASCADE (account purge) |
 
-## 7. SQL tests (authored — **not executed**)
+## 7. SQL tests (authored; later executed on DEV — human)
 
 | File | Focus |
 |------|-------|
@@ -90,16 +91,18 @@ Accept → TRUE:
 | `03_fk_cadence_recovery.sql` | cadence cases; SET NULL; NO ACTION; recovery |
 | `04_account_deletion.sql` | account purge; no orphans |
 
-## 8. Remaining risks
+## 8. Remaining risks (post-apply)
 
-- Schema unapplied until separate L3 apply
+- Further schema changes still require explicit L3 on the named DEV project
 - SQL tests assume Supabase `auth.users` column layout
-- Deferred FK semantics should be verified on hosted PG17 after apply
 - Trusted audit writer still deferred
 - No XNINE; no service-role to agents; `.env.local` untouched
+- Phase 1B product acceptance review still pending (see `docs/ROADMAP.md`)
 
-## Apply (only after explicit later L3)
+## Apply (historical — already done for `20261122190000` on DEV)
 
 ```bash
 npx supabase db push --project-ref qyysmgwdvhftbgwhpbjt
 ```
+
+Do **not** re-run against PROD or an unnamed project. New migrations need a fresh L3.

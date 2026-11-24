@@ -69,7 +69,7 @@ trustworthy data and deliberate reflection—not generic productivity noise.
 
 - Timezone: `Europe/Bucharest`
 - Base currency: `RON` (multi-currency accounts allowed)
-- Auth: email magic link
+- Auth: email/password primary; magic-link fallback; no public signup
 - Check-in v1: mood, energy, focus (1–5) + optional note
 
 ## Non-goals (foundation / near-term)
@@ -86,6 +86,6 @@ trustworthy data and deliberate reflection—not generic productivity noise.
 
 | Milestone | Success |
 |-----------|---------|
-| **Phase 1** | Sign in (magic link), chapter + module activation, habit log with correct statuses and linked recovery, project/milestone/task tree — against **DEV** Supabase when approved; **no** Vercel |
+| **Phase 1** | Sign in (email/password; magic-link fallback), chapter + module activation, habit log with correct statuses and linked recovery, project/milestone/task tree — against **DEV** Supabase; **no** Vercel |
 | **Later v0** | Check-ins, reviews, physical, finances with honest semantics, exports — per ROADMAP Phases 2–5 |
 | **AI** | Sensitive modules remain closed unless explicitly unlocked |
