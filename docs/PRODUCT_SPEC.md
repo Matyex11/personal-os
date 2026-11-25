@@ -87,5 +87,6 @@ trustworthy data and deliberate reflection—not generic productivity noise.
 | Milestone | Success |
 |-----------|---------|
 | **Phase 1** | Sign in (email/password; magic-link fallback), chapter + module activation, habit log with correct statuses and linked recovery, project/milestone/task tree — against **DEV** Supabase; **no** Vercel |
-| **Later v0** | Check-ins, reviews, physical, finances with honest semantics, exports — per ROADMAP Phases 2–5 |
+| **Phase 2** | Check-ins, weekly reviews, physical metrics (soft-gated) — implemented pending M4 acceptance |
+| **Later v0** | Finances with honest semantics, exports, behavioural, MCP — per ROADMAP Phases 3–5 |
 | **AI** | Sensitive modules remain closed unless explicitly unlocked |

@@ -109,8 +109,11 @@ tests/unit|e2e
 services under `src/modules/*`, data-backed vertical-slice UI, cadence v1, migration
 `supabase/migrations/20261122190000_phase1b_core.sql` **applied** on
 `personal-os-dev`. Publishable key only. Auth: password primary + magic-link
-fallback. Further hosted schema apply remains L3. **Phase 2 authorized** (not started).
-See `docs/ROADMAP.md` for accepted limitations.
+fallback. Further hosted schema apply remains L3.
+**Phase 2 implemented** (check-ins, weekly reviews, physical metrics + soft gating;
+pending M4 acceptance). Phase 2 schema
+`supabase/migrations/20261124190000_phase2_checkins_reviews_physical.sql` applied on
+DEV under L3 (M0). See `docs/ROADMAP.md`.
 
 ## MCP boundary (consistency with MCP_SPEC)
 

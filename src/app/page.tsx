@@ -47,7 +47,7 @@ export default async function DashboardPage() {
       {!user ? (
         <EmptyState
           title="Sign in to continue"
-          description="Protected routes require a magic-link session against personal-os-dev."
+          description="Protected routes require a signed-in session against personal-os-dev (password primary, magic-link fallback)."
           action={
             <Button asChild>
               <Link href="/login">Sign in</Link>

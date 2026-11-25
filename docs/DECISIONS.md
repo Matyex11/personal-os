@@ -182,7 +182,7 @@ before Phase 1 without treating it as an emergency.
 | R002 | Concrete Supabase **PROD** project ref (DEV resolved) | **DEV resolved:** `personal-os-dev` / `qyysmgwdvhftbgwhpbjt` / `eu-central-1`. Documented PROD forbid: `bdmhlzbigdedqsqirwxn` — confirm when PROD cutover nears; do not invent or scrape |
 | R003 | MCP host vendor | Deferred (D017 / ex-U005) |
 | R004 | FX policy for cross-currency transfers | Rates source, mid-market vs booked rate |
-| R006 | Recharts vs lighter charts if performance bites | Ex-U012; accepted for v0 |
+| R006 | Recharts vs lighter charts if performance bites | Ex-U012; D003 still names Recharts. Phase 2 physical shipped **text recent series** only (no chart dependency added). Revisit when a chart is justified. |
 | R007 | Whether PROD may ever be same org different project only | Assumed separate projects |
 
 ---
@@ -202,13 +202,13 @@ before Phase 1 without treating it as an emergency.
 | `.env` files | None present |
 | Hosted project link | **Unknown / unsafe to assume** |
 
-### Current state note (Phase 1B acceptance, 2026-11-24)
+### Current state note (Phase 2 M4 hardening, 2026-11-25)
 
 | Check | Result |
 |-------|--------|
 | App / `package.json` | Present — Next.js 16 vertical slice on branch |
-| Migration | `20261122190000` applied on **personal-os-dev** |
+| Migrations | `20261122190000` + Phase 2 `20261124190000` applied on **personal-os-dev** (L3) |
 | DEV ref | `qyysmgwdvhftbgwhpbjt` (`eu-central-1`) |
 | Docker | Still stopped (L3 to start) |
 | Secrets | `.env.example` only in git; `.env.local` local-only |
-| Phase status | Phase 1B **accepted with explicit limitations**; Phase 2 **authorized** |
+| Phase status | Phase 1B **accepted**; Phase 2 **implemented** (check-ins / reviews / physical) — **M4 pending acceptance** |

@@ -82,10 +82,15 @@ test.describe("check-ins vertical slice", () => {
     await page.reload();
     await expectSignedIn(page);
     await expect(page.getByRole("heading", { name: /Today \(/ })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByLabel("Mood (1–5)")).toHaveValue("4");
-    await expect(page.getByLabel("Energy (1–5)")).toHaveValue("3");
-    await expect(page.getByLabel("Focus (1–5)")).toHaveValue("5");
-    await expect(page.getByLabel("Note (optional)")).toHaveValue(noteMarker);
+
+    // Scope to today's form — history rows also expose Mood/Energy/Focus labels.
+    const todayForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: /Save check-in|Update today/ }),
+    });
+    await expect(todayForm.getByLabel("Mood (1–5)")).toHaveValue("4");
+    await expect(todayForm.getByLabel("Energy (1–5)")).toHaveValue("3");
+    await expect(todayForm.getByLabel("Focus (1–5)")).toHaveValue("5");
+    await expect(todayForm.getByLabel("Note (optional)")).toHaveValue(noteMarker);
 
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Today's check-in", exact: true })).toBeVisible();

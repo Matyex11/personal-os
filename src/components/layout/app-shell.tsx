@@ -34,7 +34,7 @@ export async function AppShell({ children }: AppShellProps) {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Phase 1B</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Phase 2</p>
               {user ? (
                 <form action="/auth/signout" method="post">
                   <Button type="submit" variant="outline" size="sm">
@@ -58,7 +58,7 @@ export async function AppShell({ children }: AppShellProps) {
       <footer className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6">
         <Separator className="mb-4" />
         <p className="text-xs text-muted-foreground">
-          DEV target personal-os-dev (eu-central-1). Migrations drafted — not applied until L3 approval.
+          DEV target personal-os-dev (eu-central-1). Further hosted schema apply, Docker, and deploy stay L3.
         </p>
       </footer>
     </div>

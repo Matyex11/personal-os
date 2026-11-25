@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { PhysicalMetricRow } from "@/lib/db/types";
 import { physicalMetricDef, type PhysicalMetricKey } from "@/modules/physical/schemas";
 
@@ -44,12 +45,12 @@ export function PhysicalHistory({ rows, activeOn }: PhysicalHistoryProps) {
             data-recorded-on={date}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-              <a
+              <Link
                 href={`/physical?on=${encodeURIComponent(date)}`}
                 className="font-medium text-foreground underline-offset-4 hover:underline"
               >
                 {date}
-              </a>
+              </Link>
               <span className="text-muted-foreground">
                 {dayRows.length} metric{dayRows.length === 1 ? "" : "s"}
               </span>

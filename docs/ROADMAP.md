@@ -167,20 +167,29 @@ In scope (implemented unless noted):
 
 ---
 
-## Phase 2 — Check-ins, reviews, physical *(authorized — not started)*
+## Phase 2 — Check-ins, reviews, physical *(implemented — pending M4 acceptance)*
 
-**Status:** **Authorized to begin** after Phase 1B acceptance (2026-11-24).
-No Phase 2 features are implemented by the acceptance-closure docs pass.
+**Status:** **Implemented on branch** `cursor/personal-os-foundation-67da`
+(M1 check-ins, M2 weekly reviews, M3 physical metrics; M4 hardening). Schema migration
+`20261124190000_phase2_checkins_reviews_physical.sql` was applied on **personal-os-dev**
+under L3 during M0; further hosted apply remains L3.
 
-In scope when work starts:
+**Delivered:**
 
-- Simple check-ins (`mood` / `energy` / `focus` + optional note)
-- Weekly review surfaces
-- Physical metrics + simple Recharts
-- Expand RLS/Playwright coverage on DEV
+- Check-ins: one per civil day in profile TZ; mood/energy/focus 1–5 + optional note;
+  historical edit; soft `checkins` gating; dashboard today status; Playwright slice
+- Weekly reviews: ISO Mon–Sun week; draft → complete → reopen; display-time summaries;
+  soft `reviews` gating; dashboard week status; Playwright slice
+- Physical metrics: five approved keys on `public.physical_metrics`; subset per day;
+  date select + history; text recent series (**no Recharts** — none in app deps;
+  R006 chart choice deferred); soft `physical` gating; dashboard latest snapshot;
+  Playwright slice
 
-Accepted Phase 1B limitations and all L3 gates (hosted schema, Docker, deploy, PROD,
-Auth dashboard changes) still apply.
+**Explicit Phase 2 limitations:** no DELETE for these tables; no medical/wearable claims;
+no chart library; unit tests assert ownership scoping + 23505 recovery — not a live RLS
+proof from mocks; L3 gates (Docker, deploy, PROD, further schema) unchanged.
+
+Accepted Phase 1B limitations and all L3 gates still apply.
 
 ## Phase 3 — Finances (careful semantics)
 

@@ -342,36 +342,45 @@ export async function getLatestPhysicalSnapshot() {
     const timeZone = (profile as ProfileRow | null)?.timezone ?? DEFAULT_TIME_ZONE;
     const todayOn = todayInTimeZone(timeZone);
 
-    const { data, error } = await supabase
-      .from("physical_metrics")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("metric_key", [...PHYSICAL_METRIC_KEYS])
-      .order("recorded_on", { ascending: false })
-      .limit(100);
-    if (error) throw new AppError("unavailable", "Could not load physical metrics.");
-
-    const rows = (data ?? []) as PhysicalMetricRow[];
+    // One latest row per key — avoid a single LIMIT window that can miss rare keys
+    // when another metric dominates recent history.
     const latestByKey = {} as Record<PhysicalMetricKey, PhysicalMetricRow | null>;
     for (const key of PHYSICAL_METRIC_KEYS) {
       latestByKey[key] = null;
     }
-    for (const row of rows) {
-      const key = row.metric_key as PhysicalMetricKey;
-      if (!(key in latestByKey)) continue;
-      if (!latestByKey[key]) {
-        latestByKey[key] = row;
-      }
-    }
 
-    const todayRows = rows.filter((row) => row.recorded_on === todayOn);
+    await Promise.all(
+      PHYSICAL_METRIC_KEYS.map(async (key) => {
+        const { data, error } = await supabase
+          .from("physical_metrics")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("metric_key", key)
+          .order("recorded_on", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          throw new AppError("unavailable", "Could not load physical metrics.");
+        }
+        latestByKey[key] = (data as PhysicalMetricRow | null) ?? null;
+      }),
+    );
+
+    const { data: todayData, error: todayError } = await supabase
+      .from("physical_metrics")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("recorded_on", todayOn);
+    if (todayError) {
+      throw new AppError("unavailable", "Could not load physical metrics.");
+    }
 
     return {
       ok: true as const,
       data: {
         todayOn,
         timeZone,
-        todayCount: todayRows.length,
+        todayCount: (todayData ?? []).length,
         latestByKey,
       },
     };

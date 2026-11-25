@@ -16,6 +16,7 @@ vi.mock("@/modules/habits/service", () => ({
 }));
 
 import {
+  getLatestPhysicalSnapshot,
   updatePhysicalMetric,
   upsertPhysicalMetric,
   upsertPhysicalMetricsForDay,
@@ -248,6 +249,86 @@ describe("upsertPhysicalMetricsForDay", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data).toHaveLength(2);
     expect(calls).toEqual(["weight_kg", "steps"]);
+  });
+});
+
+describe("getLatestPhysicalSnapshot", () => {
+  it("loads latest row per metric key instead of a single shared LIMIT window", async () => {
+    const keysQueried: string[] = [];
+    createClient.mockResolvedValue({
+      from(table: string) {
+        if (table === "profiles") {
+          return {
+            select() {
+              const api: Record<string, unknown> = {};
+              api.eq = () => api;
+              api.maybeSingle = async () => ({
+                data: { timezone: "Europe/Bucharest" },
+                error: null,
+              });
+              return api;
+            },
+          };
+        }
+        expect(table).toBe("physical_metrics");
+        return {
+          select(columns?: string) {
+            const filters: Record<string, string> = {};
+            const api: Record<string, unknown> = {
+              eq(col: string, value: string) {
+                filters[col] = value;
+                return api;
+              },
+              order() {
+                return api;
+              },
+              limit() {
+                return api;
+              },
+              maybeSingle: async () => {
+                keysQueried.push(filters.metric_key);
+                return {
+                  data: row({
+                    metric_key: filters.metric_key,
+                    value: 1,
+                    unit: "kg",
+                  }),
+                  error: null,
+                };
+              },
+              then(
+                resolve: (value: { data: unknown; error: null }) => unknown,
+              ) {
+                // todayCount path: select("id").eq().eq() awaited as a thenable
+                if (columns === "id") {
+                  return Promise.resolve(
+                    resolve({ data: [{ id: "today-1" }], error: null }),
+                  );
+                }
+                return Promise.resolve(resolve({ data: null, error: null }));
+              },
+            };
+            return api;
+          },
+        };
+      },
+    });
+
+    const result = await getLatestPhysicalSnapshot();
+    expect(result.ok).toBe(true);
+    expect(keysQueried.sort()).toEqual(
+      [
+        "weight_kg",
+        "sleep_hours",
+        "steps",
+        "resting_hr_bpm",
+        "workout_minutes",
+      ].sort(),
+    );
+    if (result.ok) {
+      expect(result.data.todayCount).toBe(1);
+      expect(result.data.latestByKey.weight_kg?.metric_key).toBe("weight_kg");
+    }
   });
 });
 
