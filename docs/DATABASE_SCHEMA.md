@@ -262,6 +262,10 @@ separate annotation series.
 
 ### Finances
 
+> **Phase 3 P3-M0 draft:** migration
+> `supabase/migrations/20261125140000_phase3_finance.sql` — **not applied** until L3.
+> Approved decisions: `docs/phase-3-architecture-plan.md`.
+
 Keep ledgers semantically separated. **Do not** derive “profit” by summing
 generic signed amounts across mixed `tx_kind` values.
 
@@ -269,51 +273,83 @@ generic signed amounts across mixed `tx_kind` values.
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id` | |
-| `name`, `currency` | ISO currency (account-native) |
+| `id`, `user_id` | `UNIQUE (user_id, id)` for composite FKs |
+| `name`, `currency` | ISO `^[A-Z]{3}$`; account-native; locked after any cash tx **or** linked trading PnL. Cash-tx and PnL inserts take account `FOR SHARE` so they serialize with currency UPDATEs under READ COMMITTED. |
 | `account_kind` | `cash`, `bank`, `brokerage`, `wallet`, `other` |
-| `is_sensitive` | Default true |
+| `is_sensitive` | Default **true** |
+| `is_active` | Default **true** — soft retire; no client DELETE |
 
-#### `finance_transactions` — cash movements & P&L-relevant ops (typed)
+#### `finance_transactions` — cash movements & recognition (typed)
 
-Every row has exactly one `tx_kind`. Amounts are in the account currency unless
-`currency` overrides for multi-currency booking (then FX fields required later).
+Every row has exactly one `tx_kind`. `amount` is **signed** (inbound +, outbound −)
+in the posting account’s native `currency` (must match account). Single `amount`
+column — no parallel `revenue_amount` / `cost_amount`.
 
-| `tx_kind` | Meaning | Allowed companion fields |
-|-----------|---------|--------------------------|
-| `deposit` | External cash in (not income recognition) | — |
-| `withdrawal` | External cash out (not expense recognition) | — |
-| `transfer` | Move between **own** accounts | Requires `counterparty_account_id` + paired leg or transfer group id; **zero net worth impact** |
-| `income` | Personal income recognition | `income_category`: `employment` \| `freelance` \| `business` \| `other` |
-| `expense` | Personal expense | Optional expense category |
-| `business_revenue` | Business revenue (not automatically “profit”) | May set `revenue_amount` |
-| `business_cost` | Business cost | May set `cost_amount` |
-| `fee` | Fees (banking/broker) | — |
-| `other` | Explicit escape hatch; **excluded** from profit reports by default | |
+| `tx_kind` | Sign | Balance | Personal cashflow | Business profit |
+|-----------|------|---------|-------------------|-----------------|
+| `opening_balance` | ± | Yes (≤1/account) | **No** | **No** |
+| `deposit` | + | Yes | Yes | No |
+| `withdrawal` | − | Yes | Yes | No |
+| `transfer` | − out / + in | Yes | No (moves) | No |
+| `income` | + | Yes | Yes | No |
+| `expense` | − | Yes | Yes | No |
+| `business_revenue` | + | Yes | No | Yes |
+| `business_cost` | − | Yes | No | Yes |
+| `fee` | − | Yes | Yes (shown separately) | No |
+| `other` | ± | Yes | Excluded from profit | **No** |
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `account_id` | Composite FK to account |
-| `posted_on` | |
-| `amount` | Signed per convention (document inbound positive for deposit/income/revenue) |
-| `currency` | Defaults to account currency |
-| `tx_kind` | See table above |
-| `income_category` | Only when `tx_kind = 'income'` |
-| `revenue_amount` / `cost_amount` | Only for business revenue/cost kinds when splitting |
-| `transfer_group_id` | Links the two legs of a transfer |
-| `counterparty_account_id` | Other account for transfers (same `user_id`) |
+| `id`, `user_id`, `account_id` | Composite FK → account (`ON DELETE NO ACTION DEFERRABLE`) |
+| `posted_on` | Civil date |
+| `amount` | Finite numeric ≠ 0; sign-by-kind CHECK |
+| `currency` | Must equal account native currency (`FOR SHARE` account lookup trigger) |
+| `tx_kind` | See table |
+| `income_category` | Required iff `income`: `employment` \| `freelance` \| `business` \| `other` |
+| `expense_category` | Optional free text iff `expense` |
+| `transfer_group_id` | Required for `transfer`; deferred ins/upd + del constraint triggers enforce pair + economics |
+| `counterparty_account_id` | Other own account for transfers |
+| `fx_rate` / `fx_rate_date` / `fx_source` | Cross-currency transfers only; `fx_source = 'user_booked'`; rate = **destination units per one source unit** |
 | `notes` | Sensitive |
 
-**Invariants:**
+**Transfers — integrity layers (do not conflate):**
 
-- Deposits/withdrawals **never** invent trading or business profit.
-- Transfers must net to zero across legs in their currencies’ cash view (or be
-  clearly FX-marked later); they never appear as income/expense.
-- **Business profit** = sum(`business_revenue`) − sum(`business_cost`) for a
-  period — **not** sum(all transactions), **not** income − expense unless the
-  report is explicitly “personal cashflow.”
-- **Personal cashflow** reports use deposit/withdrawal/income/expense/fee only,
-  labeled as cashflow — not “profit.”
+1. **Database-wide (deferred constraint triggers)** — two `DEFERRABLE INITIALLY
+   DEFERRED` AFTER ROW triggers (INSERT/UPDATE vs DELETE; `WHEN` uses only
+   `NEW`/`OLD`, not `TG_OP`). At commit, each `transfer_group_id` for a user must
+   have **exactly two** legs that are economically paired: reciprocal
+   counterparties, one outbound (−) and one inbound (+), shared `posted_on`,
+   same-currency equal absolute amounts with **no** FX fields, or cross-currency
+   matching `user_booked` FX on both legs with inbound =
+   `round(source_amount * fx_rate, 8)`. Fully removed groups (`n = 0`, e.g. user
+   CASCADE) are allowed. Economic field updates after insert are blocked.
+   Commit-time validation takes one deterministic **per-user** transaction-scoped
+   advisory lock (`personal_os.finance_transfer_validate` + `user_id`) before
+   counting so two sessions cannot each commit a separate 2-leg set into the
+   same group (READ COMMITTED write skew). Per-user (not per-group) avoids
+   lock-order deadlocks when one transaction validates multiple groups.
+   **Isolation assumption:** this concurrency design relies on PostgreSQL
+   **READ COMMITTED** (Supabase/Postgres default). An advisory lock alone does
+   **not** guarantee the same outcomes under **REPEATABLE READ** or
+   **SERIALIZABLE**; do not raise finance-write isolation without revisiting
+   transfer-group validation.
+2. **RPC path** — `public.create_finance_transfer(...)` (`SECURITY INVOKER`,
+   `auth.uid()` ownership, authenticated EXECUTE) is the app entry point: loads
+   owned active accounts, applies same-CCY / cross-CCY rules, inserts both legs
+   in one function call.
+3. **GUC (limited purpose)** — session flag `personal_os.finance_transfer_rpc`
+   only **authorizes INSERT** of `tx_kind = 'transfer'` rows (so clients cannot
+   insert transfer rows without going through the RPC). It is **not** the
+   economic integrity guarantee; crafted two-leg inserts that set the GUC still
+   must pass the deferred economic pairing rules or the transaction aborts.
+
+**Account cash balance** = `SUM(amount)` over all cash-posting kinds including
+`opening_balance`. **Never** include `trading_pnl_entries`.
+
+**Business profit** = `SUM(amount)` where `tx_kind in ('business_revenue','business_cost')` only.
+
+**Personal cashflow** = deposit/withdrawal/income/expense/fee (fees separate in UI);
+excludes opening_balance, transfers, business kinds, trading PnL.
 
 #### `trading_pnl_entries`
 
@@ -321,22 +357,22 @@ Orthogonal performance ledger — **not** cash.
 
 | Column | Notes |
 |--------|-------|
-| `id`, `user_id`, `account_id?` | Brokerage account optional link |
-| `period_start`, `period_end` or `traded_on` | |
-| `realized_pnl`, `unrealized_pnl` | |
-| `currency` | |
+| `id`, `user_id`, `account_id?` | Optional brokerage link; composite FK |
+| `traded_on` | Daily civil date; **no** unique daily constraint (multiple rows/day OK) |
+| `realized_pnl` | Period-additive over a date range |
+| `unrealized_pnl` | Point-in-time snapshot for that `traded_on` |
+| `currency` | ISO; when `account_id` is set, must match linked account currency (trigger) |
 | `notes` | Sensitive |
 
-**Invariant:** PnL must never be presented as cash balance change; cash in/out
-of a brokerage uses `deposit`/`withdrawal`/`transfer` on `finance_transactions`.
+**Invariant:** PnL never changes cash balance; brokerage cash uses
+`opening_balance` / `deposit` / `withdrawal` / `transfer` on `finance_transactions`.
 
 #### Multi-currency reporting
 
 - Each account has a native currency; profile `base_currency` default **RON**.
-- Base-currency reports convert with an explicit rate source/date (implementation
-  later); never silently sum mixed currencies.
-- Transfers across currencies require an FX policy (unresolved detail — see
-  DECISIONS remaining risks).
+- No automatic FX provider. Reports without an explicit user rate stay
+  **separated by currency**.
+- Cross-currency transfers: user-booked rate only (R004 resolved for Phase 3).
 
 ### `physical_metrics`
 
@@ -428,8 +464,10 @@ auth.users ──< profiles
 - `habit_logs (habit_id, logged_on)` where not recovery; recovery unique on
   `(habit_id, recovers_log_id)`
 - `tasks (user_id, status, due_on)`
-- `finance_transactions (account_id, posted_on)`; `(transfer_group_id)`
-- `trading_pnl_entries (user_id, period_end)`
+- `finance_accounts (user_id, is_active)`
+- `finance_transactions (user_id, account_id, posted_on)`; `(user_id, tx_kind, posted_on)`;
+  `(user_id, transfer_group_id)`; partial unique opening_balance; transfer group+account unique
+- `trading_pnl_entries (user_id, traded_on)`
 - `audit_logs (user_id, created_at desc)`
 
 ## RLS + privileges (Phase 1B draft)
